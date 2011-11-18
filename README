@@ -1,0 +1,24 @@
+Project 3 Map
+
+1. Write Skeleton for TLBMiss Handler in VMProcess.handleException()
+   a: looking up TLB throws MipsException, which is handled in run() in processor's try/catch by calling e.handle().  e.handle() calls kernel exception, which calls the appropriate process exception
+
+   b: Exception values  - add a case to handleException() in VMProcess/UserProcess
+    /** Caused by a syscall instruction. */
+    public static final int exceptionSyscall = 0;
+    /** Caused by an access to an invalid virtual page. */
+    public static final int exceptionPageFault = 1;
+    /** Caused by an access to a virtual page not mapped by any TLB entry. */
+    public static final int exceptionTLBMiss = 2;
+    /** Caused by a write access to a read-only virtual page. */
+    public static final int exceptionReadOnly = 3;
+    /** Caused by an access to an invalid physical page. */
+    public static final int exceptionBusError = 4;
+    /** Caused by an access to a misaligned virtual address. */
+    public static final int exceptionAddressError = 5;
+    /** Caused by an overflow by a signed operation. */
+    public static final int exceptionOverflow = 6;
+    /** Caused by an attempt to execute an illegal instruction. */
+    public static final int exceptionIllegalInstruction = 7;
+
+   c:  exception gets handled in VMProcess, so it use the badaddress (available from Processor.regBadVAddr - see task I).  If TLBMiss exception, get the address mapping from the page table and then set it in TLB by randomly kicking another out (if full?).  If it isn't in page table.... 

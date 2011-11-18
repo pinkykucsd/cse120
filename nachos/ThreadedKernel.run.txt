@@ -1,0 +1,231 @@
+	
+	public void run() {
+		
+		// -----------------
+		// ----- tests -----
+		if(true) {
+			System.out.println("*** Beginning user tests. ***");
+			
+			// ---------------------------------
+			// ----- test project 1 task 1 -----
+			if(true) {
+				System.out.println("*** Project 1 Task 1");
+				
+				// spawn two threads
+				System.out.println("thread 1");
+				KThread thread1 = new KThread(new Runnable() { public void run() {
+					for(long i = 1; i < (1<<54); ++i) {
+						double x = Math.pow(i + 0.5, i + 0.5);
+						Lib.assertTrue(x != 0);
+						if(i % 10 == 0) {
+							KThread.yield();
+						}
+					}
+				}});
+				thread1.fork();
+				System.out.println("thread 2");
+				KThread thread2 = new KThread(new Runnable() { public void run() {
+					for(long i = 1; i < (1<<54); ++i) {
+						double x = Math.pow(i + 0.5, i + 0.5);
+						Lib.assertTrue(x != 0);
+						if(i % 10 == 0) {
+							KThread.yield();
+						}
+					}
+				}});
+				thread2.fork();
+				
+				// wait for each thread to finish
+				System.out.println("waiting for thread 1");
+				thread1.join();
+				System.out.println("waiting for thread 2");
+				thread2.join();
+				System.out.println("finished joining threads.");
+			}
+			
+			
+			// ---------------------------------
+			// ----- test project 1 task 2 -----
+			if(true) {
+				System.out.println("*** Project 1 Task 2");
+				
+				// shared variables
+				final Lock lock = new Lock();
+				final Condition2 cv = new Condition2(lock);
+				
+				KThread thread1 = new KThread(new Runnable() { public void run() {
+					System.out.println("thread1 entered");
+					lock.acquire();
+					System.out.println("thread1 acquired lock. sleeping...");
+					cv.sleep();
+					System.out.println("thread1 resumed and acquired lock");
+					lock.release();
+					System.out.println("thread1 released lock");
+					
+				}});
+				thread1.fork();
+				
+				KThread thread2 = new KThread(new Runnable() { public void run() {			
+					System.out.println("thread2 entered");
+					lock.acquire();
+					System.out.println("thread2 acquired lock. sleeping...");
+					cv.sleep();
+					System.out.println("thread2 resumed and acquired lock");
+					lock.release();
+					System.out.println("thread2 released lock");
+				}});
+				thread2.fork();
+				
+				KThread thread3 = new KThread(new Runnable() { public void run() {			
+					System.out.println("thread3 entered");
+					lock.acquire();
+					System.out.println("thread3 acquired lock. sleeping...");
+					cv.sleep();
+					System.out.println("thread3 resumed and acquired lock");
+					lock.release();
+					System.out.println("thread3 released lock");
+				}});
+				thread3.fork();
+				
+				// yield for a moment
+				System.out.println("yielding main thread");
+				KThread.yield();
+				
+				System.out.println("main thread resuming. acquiring lock...");
+				lock.acquire();
+				System.out.println("wakeAll on condition var.");
+				cv.wakeAll();
+				System.out.println("main thread releasing lock");
+				lock.release();
+				KThread.yield();
+				System.out.println("main thread done.");
+			}
+			
+			
+			// ---------------------------------
+			// ----- test project 1 task 3 -----
+			if(true) {
+				System.out.println("*** Project 1 Task 3");
+				
+				Lib.assertTrue(alarm != null);
+				
+				KThread thread1 = new KThread(new Runnable() { public void run() {
+					System.out.println("thread1 entered");
+					
+					System.out.println("thread1 sleeping for a bit");
+					alarm.waitUntil(10000);
+					
+					System.out.println("thread1 alarmed.");
+				}});
+				thread1.fork();
+				
+				KThread thread2 = new KThread(new Runnable() { public void run() {
+					System.out.println("thread2 entered");
+					
+					System.out.println("thread2 sleeping for a bit");
+					alarm.waitUntil(100000);
+					
+					System.out.println("thread2 alarmed.");
+				}});
+				thread2.fork();
+				
+				KThread thread3 = new KThread(new Runnable() { public void run() {
+					System.out.println("thread3 entered");
+					
+					System.out.println("thread3 sleeping for a bit");
+					alarm.waitUntil(50000);
+					
+					System.out.println("thread3 alarmed.");
+				}});
+				thread3.fork();
+				
+				System.out.println("waiting to join with other threads");
+				thread1.join();
+				thread2.join();
+				thread3.join();
+				
+				System.out.println("main thread done.");
+			}
+			
+			// ---------------------------------
+			// ----- test project 1 task 4 -----
+			if(true) {
+				System.out.println("*** Project 1 Task 4");
+				
+				final int[] messages = { 123, 314159, 271828128, 1337 };
+				final Communicator communicator = new Communicator();
+				
+				KThread listener1 = new KThread(new Runnable() { public void run() {
+					System.out.println("ready to listen");
+					int msg = communicator.listen();
+					System.out.printf("heard %d\n", msg);
+				}});
+				listener1.fork();
+				
+				KThread listener2 = new KThread(new Runnable() { public void run() {
+					System.out.println("ready to listen");
+					int msg = communicator.listen();
+					System.out.printf("heard %d\n", msg);
+				}});
+				listener2.fork();
+				
+				KThread speaker1 = new KThread(new Runnable() { public void run() {
+					System.out.println("ready to speak");
+					int msg = messages[0];
+					communicator.speak(msg);
+					System.out.printf("ack. heard %d\n", msg);
+				}});
+				speaker1.fork();
+				
+				KThread speaker2 = new KThread(new Runnable() { public void run() {
+					System.out.println("ready to speak");
+					int msg = messages[1];
+					communicator.speak(msg);
+					System.out.printf("ack. heard %d\n", msg);
+				}});
+				speaker2.fork();
+				
+				KThread speaker3 = new KThread(new Runnable() { public void run() {
+					System.out.println("ready to speak");
+					int msg = messages[2];
+					communicator.speak(msg);
+					System.out.printf("ack. heard %d\n", msg);
+				}});
+				speaker3.fork();
+				
+				KThread speaker4 = new KThread(new Runnable() { public void run() {
+					System.out.println("ready to speak");
+					int msg = messages[3];
+					communicator.speak(msg);
+					System.out.printf("ack. heard %d\n", msg);
+				}});
+				speaker4.fork();
+				
+				KThread listener3 = new KThread(new Runnable() { public void run() {
+					System.out.println("ready to listen");
+					int msg = communicator.listen();
+					System.out.printf("heard %d\n", msg);
+				}});
+				listener3.fork();
+				
+				KThread listener4 = new KThread(new Runnable() { public void run() {
+					System.out.println("ready to listen");
+					int msg = communicator.listen();
+					System.out.printf("heard %d\n", msg);
+				}});
+				listener4.fork();
+				
+				System.out.println("main thread waiting.");
+				listener1.join();
+				listener2.join();
+				listener3.join();
+				listener4.join();
+				speaker1.join();
+				speaker2.join();
+				speaker3.join();
+				speaker4.join();
+				
+				System.out.println("main thread finished.");
+			}
+		}
+	}

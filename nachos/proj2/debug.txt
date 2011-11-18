@@ -1,0 +1,98 @@
+nachos 5.0j initializing... config interrupt timer processor console user-check grader
+
+ThreadedKernel Initializing
+*** awesome thread 0 looped 0 times
+*** awesome thread 1 looped 0 times
+*** awesome thread 0 looped 1 times
+*** awesome thread 1 looped 1 times
+*** awesome thread 0 looped 2 times
+*** awesome thread 1 looped 2 times
+*** awesome thread 0 looped 3 times
+*** awesome thread 1 looped 3 times
+*** awesome thread 0 looped 4 times
+*** awesome thread 1 looped 4 times
+
+Da Semaphore thread is about to be made for the selfTest...
+Synch Self Test Thread...
+Testing the console device. Typed characters
+will be echoed until q is typed.
+q
+Creating a process
+ with PID:	0
+0Executing name & args
+Loading
+Loading Sections
+handleSyscall
+nachos% handleSyscall
+handleSyscall
+ehandleSyscall
+handleSyscall
+chandleSyscall
+handleSyscall
+hhandleSyscall
+handleSyscall
+ohandleSyscall
+handleSyscall
+ handleSyscall
+handleSyscall
+yhandleSyscall
+handleSyscall
+ohandleSyscall
+handleSyscall
+uhandleSyscall
+handleSyscall
+ handleSyscall
+handleSyscall
+thandleSyscall
+handleSyscall
+ohandleSyscall
+handleSyscall
+ohandleSyscall
+handleSyscall
+
+handleSyscall
+handleExec
+Filename in exec:	echo.coffCount:	3
+args to exec:	echo
+args to exec:	you
+args to exec:	too
+Creating a process
+ with PID:	1
+3Executing name & args
+name:	echo.coff	args:	echo
+name:	echo.coff	args:	you
+name:	echo.coff	args:	too
+Loading
+Loading Sections
+handleSyscall
+handleJoin
+handleSyscall
+3 arguments
+handleSyscall
+arg 0: echo
+handleSyscall
+arg 1: you
+handleSyscall
+arg 2: too
+handleSyscall
+handleExit
+Unload Sections
+34
+i:	0	14
+i:	1	14
+i:	2	14
+i:	3	14
+i:	4	14
+i:	5	14
+i:	6	14
+i:	7	14
+i:	8	14
+i:	9	14
+i:	10	14
+i:	11	14
+i:	12	14
+i:	13	14
+48
+handleClose
+handleClose
+PID of Process before the very end 1

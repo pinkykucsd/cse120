@@ -1,0 +1,774 @@
+package nachos.userprog;
+
+import nachos.machine.*;
+import nachos.threads.*;
+import nachos.userprog.*;
+
+import java.io.EOFException;
+
+/**
+ * Encapsulates the state of a user process that is not contained in its
+ * user thread (or threads). This includes its address translation state, a
+ * file table, and information about the program being executed.
+ *
+ * <p>
+ * This class is extended by other classes to support additional functionality
+ * (such as additional syscalls).
+ *
+ * @see	nachos.vm.VMProcess
+ * @see	nachos.network.NetProcess
+ */
+public class UserProcess {
+    /**
+     * Allocate a new process.
+     */
+    public UserProcess() {
+	int numPhysPages = Machine.processor().getNumPhysPages();   //presumably have to change to be an appropriate numbah  DAC
+	pageTable = new TranslationEntry[numPhysPages];             //check out what TranslationEntry does  DAC    
+	for (int i=0; i<numPhysPages; i++)
+	    pageTable[i] = new TranslationEntry(i,i, true,false,false,false);   //this is doing the 1-1 mapping methinks  DAC
+	//initialize file_descriptors 
+          file_descriptors[0] = UserKernel.console.openForReading();  //stdin
+          Lib.assertTrue(file_descriptors[0]!=null, "StdIn does not exist\n");    //DAC DEBUG
+          file_descriptors[1] = UserKernel.console.openForWriting();  //stdout
+          Lib.assertTrue(file_descriptors[1]!=null, "StdOut does not exist\n");   //DAC DEBUG
+	  testFileSystem();
+    }
+    
+    /**
+     * Allocate and return a new process of the correct class. The class name
+     * is specified by the <tt>nachos.conf</tt> key
+     * <tt>Kernel.processClassName</tt>.
+     *
+     * @return	a new process of the correct class.
+     */
+    public static UserProcess newUserProcess() {
+	return (UserProcess)Lib.constructObject(Machine.getProcessClassName());
+    }
+
+    /**
+     * Execute the specified program with the specified arguments. Attempts to
+     * load the program, and then forks a thread to run it.
+     *
+     * @param	name	the name of the file containing the executable.
+     * @param	args	the arguments to pass to the executable.
+     * @return	<tt>true</tt> if the program was successfully executed.
+     */
+    public boolean execute(String name, String[] args) {
+	if (!load(name, args))
+	    return false;
+	
+	new UThread(this).setName(name).fork();
+
+	return true;
+    }
+
+    /**
+     * Save the state of this process in preparation for a context switch.
+     * Called by <tt>UThread.saveState()</tt>.
+     */
+    public void saveState() {
+    }
+
+    /**
+     * Restore the state of this process after a context switch. Called by
+     * <tt>UThread.restoreState()</tt>.
+     */
+    public void restoreState() {
+	Machine.processor().setPageTable(pageTable);
+    }
+
+    /**
+     * Read a null-terminated string from this process's virtual memory. Read
+     * at most <tt>maxLength + 1</tt> bytes from the specified address, search
+     * for the null terminator, and convert it to a <tt>java.lang.String</tt>,
+     * without including the null terminator. If no null terminator is found,
+     * returns <tt>null</tt>.
+     *
+     * @param	vaddr	the starting virtual address of the null-terminated
+     *			string.
+     * @param	maxLength	the maximum number of characters in the string,
+     *				not including the null terminator.
+     * @return	the string read, or <tt>null</tt> if no null terminator was
+     *		found.
+     */
+    public String readVirtualMemoryString(int vaddr, int maxLength) {
+	Lib.assertTrue(maxLength >= 0);
+
+	byte[] bytes = new byte[maxLength+1];
+
+	int bytesRead = readVirtualMemory(vaddr, bytes);
+
+	for (int length=0; length<bytesRead; length++) {
+	    if (bytes[length] == 0)
+		return new String(bytes, 0, length);
+	}
+
+	return null;
+    }
+
+    /**
+     * Transfer data from this process's virtual memory to all of the specified
+     * array. Same as <tt>readVirtualMemory(vaddr, data, 0, data.length)</tt>.
+     *
+     * @param	vaddr	the first byte of virtual memory to read.
+     * @param	data	the array where the data will be stored.
+     * @return	the number of bytes successfully transferred.
+     */
+    public int readVirtualMemory(int vaddr, byte[] data) {
+	return readVirtualMemory(vaddr, data, 0, data.length);
+    }
+
+    /**
+     * Transfer data from this process's virtual memory to the specified array.
+     * This method handles address translation details. This method must
+     * <i>not</i> destroy the current process if an error occurs, but instead
+     * should return the number of bytes successfully copied (or zero if no
+     * data could be copied).
+     *
+     * @param	vaddr	the first byte of virtual memory to read.
+     * @param	data	the array where the data will be stored.
+     * @param	offset	the first byte to write in the array.
+     * @param	length	the number of bytes to transfer from virtual memory to
+     *			the array.
+     * @return	the number of bytes successfully transferred.
+     */
+    public int readVirtualMemory(int vaddr, byte[] data, int offset,
+				 int length) {
+	Lib.assertTrue(offset >= 0 && length >= 0 && offset+length <= data.length);
+
+	byte[] memory = Machine.processor().getMemory();
+	
+	// for now, just assume that virtual addresses equal physical addresses
+	if (vaddr < 0 || vaddr >= memory.length)
+	    return 0;
+
+	int amount = Math.min(length, memory.length-vaddr);
+	System.arraycopy(memory, vaddr, data, offset, amount);
+
+	return amount;
+    }
+
+    /**
+     * Transfer all data from the specified array to this process's virtual
+     * memory.
+     * Same as <tt>writeVirtualMemory(vaddr, data, 0, data.length)</tt>.
+     *
+     * @param	vaddr	the first byte of virtual memory to write.
+     * @param	data	the array containing the data to transfer.
+     * @return	the number of bytes successfully transferred.
+     */
+    public int writeVirtualMemory(int vaddr, byte[] data) {
+	return writeVirtualMemory(vaddr, data, 0, data.length);
+    }
+
+    /**
+     * Transfer data from the specified array to this process's virtual memory.
+     * This method handles address translation details. This method must
+     * <i>not</i> destroy the current process if an error occurs, but instead
+     * should return the number of bytes successfully copied (or zero if no
+     * data could be copied).
+     *
+     * @param	vaddr	the first byte of virtual memory to write.
+     * @param	data	the array containing the data to transfer.
+     * @param	offset	the first byte to transfer from the array.
+     * @param	length	the number of bytes to transfer from the array to
+     *			virtual memory.
+     * @return	the number of bytes successfully transferred.
+     */
+    public int writeVirtualMemory(int vaddr, byte[] data, int offset,
+				  int length) {
+	Lib.assertTrue(offset >= 0 && length >= 0 && offset+length <= data.length);
+
+	byte[] memory = Machine.processor().getMemory();
+	
+	// for now, just assume that virtual addresses equal physical addresses
+	if (vaddr < 0 || vaddr >= memory.length)
+	    return 0;
+
+	int amount = Math.min(length, memory.length-vaddr);
+	System.arraycopy(data, offset, memory, vaddr, amount);
+
+	return amount;
+    }
+
+    /**
+     * Load the executable with the specified name into this process, and
+     * prepare to pass it the specified arguments. Opens the executable, reads
+     * its header information, and copies sections and arguments into this
+     * process's virtual memory.
+     *
+     * @param	name	the name of the file containing the executable.
+     * @param	args	the arguments to pass to the executable.
+     * @return	<tt>true</tt> if the executable was successfully loaded.
+     */
+    private boolean load(String name, String[] args) {
+	Lib.debug(dbgProcess, "UserProcess.load(\"" + name + "\")");
+	
+	OpenFile executable = ThreadedKernel.fileSystem.open(name, false);
+	if (executable == null) {
+	    Lib.debug(dbgProcess, "\topen failed");
+	    return false;
+	}
+
+	try {
+	    coff = new Coff(executable);
+	}
+	catch (EOFException e) {
+	    executable.close();
+	    Lib.debug(dbgProcess, "\tcoff load failed");
+	    return false;
+	}
+
+	// make sure the sections are contiguous and start at page 0
+	numPages = 0;
+	for (int s=0; s<coff.getNumSections(); s++) {
+	    CoffSection section = coff.getSection(s);
+	    if (section.getFirstVPN() != numPages) {
+		coff.close();
+		Lib.debug(dbgProcess, "\tfragmented executable");
+		return false;
+	    }
+	    numPages += section.getLength();
+	}
+
+	// make sure the argv array will fit in one page
+	byte[][] argv = new byte[args.length][];
+	int argsSize = 0;
+	for (int i=0; i<args.length; i++) {
+	    argv[i] = args[i].getBytes();
+	    // 4 bytes for argv[] pointer; then string plus one for null byte
+	    argsSize += 4 + argv[i].length + 1;
+	}
+	if (argsSize > pageSize) {
+	    coff.close();
+	    Lib.debug(dbgProcess, "\targuments too long");  
+	    return false;
+	}
+
+	// program counter initially points at the program entry point
+	initialPC = coff.getEntryPoint();	
+
+	// next comes the stack; stack pointer initially points to top of it
+	numPages += stackPages;
+	initialSP = numPages*pageSize;
+
+	// and finally reserve 1 page for arguments
+	numPages++;
+
+	if (!loadSections())
+	    return false;
+
+	// store arguments in last page
+	int entryOffset = (numPages-1)*pageSize;
+	int stringOffset = entryOffset + args.length*4;
+
+	this.argc = args.length;
+	this.argv = entryOffset;
+	
+	for (int i=0; i<argv.length; i++) {
+	    byte[] stringOffsetBytes = Lib.bytesFromInt(stringOffset);
+	    Lib.assertTrue(writeVirtualMemory(entryOffset,stringOffsetBytes) == 4);
+	    entryOffset += 4;
+	    Lib.assertTrue(writeVirtualMemory(stringOffset, argv[i]) ==
+		       argv[i].length);
+	    stringOffset += argv[i].length;
+	    Lib.assertTrue(writeVirtualMemory(stringOffset,new byte[] { 0 }) == 1);
+	    stringOffset += 1;
+	}
+
+	return true;
+    }
+
+    /**
+     * Allocates memory for this process, and loads the COFF sections into
+     * memory. If this returns successfully, the process will definitely be
+     * run (this is the last step in process initialization that can fail).
+     *
+     * @return	<tt>true</tt> if the sections were successfully loaded.
+     */
+    protected boolean loadSections() {
+	if (numPages > Machine.processor().getNumPhysPages()) {
+	    coff.close();
+	    Lib.debug(dbgProcess, "\tinsufficient physical memory");
+	    return false;
+	}
+
+	// load sections
+	for (int s=0; s<coff.getNumSections(); s++) {
+	    CoffSection section = coff.getSection(s);
+	    
+	    Lib.debug(dbgProcess, "\tinitializing " + section.getName()
+		      + " section (" + section.getLength() + " pages)");
+
+	    for (int i=0; i<section.getLength(); i++) {
+		int vpn = section.getFirstVPN()+i;
+
+		// for now, just assume virtual addresses=physical addresses
+		section.loadPage(i, vpn);
+	    }
+	}
+	
+	return true;
+    }
+
+    /**
+     * Release any resources allocated by <tt>loadSections()</tt>.
+     */
+    protected void unloadSections() {
+    }    
+
+    /**
+     * Initialize the processor's registers in preparation for running the
+     * program loaded into this process. Set the PC register to point at the
+     * start function, set the stack pointer register to point at the top of
+     * the stack, set the A0 and A1 registers to argc and argv, respectively,
+     * and initialize all other registers to 0.
+     */
+    public void initRegisters() {
+	Processor processor = Machine.processor();
+
+	// by default, everything's 0
+	for (int i=0; i<processor.numUserRegisters; i++)
+	    processor.writeRegister(i, 0);
+
+	// initialize PC and SP according
+	processor.writeRegister(Processor.regPC, initialPC);
+	processor.writeRegister(Processor.regSP, initialSP);
+
+	// initialize the first two argument registers to argc and argv
+	processor.writeRegister(Processor.regA0, argc);
+	processor.writeRegister(Processor.regA1, argv);
+    }
+    /*
+     *return a free (null) file descriptor from file_descriptors[]
+     */
+    private int getNextFileDescriptor(){
+	//modify this to increase efficiency (move to next-file descriptor rather than starting at 0 each time)
+        for(int i=0; i<NUM_FD;i++){         //instead of hard-coding 16, maintain as private 'const'
+	    if(file_descriptors[i]==null){
+		return i;
+	    }
+        }
+        return -1;   // there are no free fds (return -1)
+    }
+    /*
+     *returns the first file descriptor with that name, or -1 if none
+     */
+    private int searchNameFileDescriptor(String name){
+	//modify this to increase efficiency (move to next-file descriptor rather than starting at 0 each time)
+        for(int i=0; i<NUM_FD;i++){         //instead of hard-coding 16, maintain as private 'const'
+            if(file_descriptors[i]!=null){  
+         	    if(file_descriptors[i].getName()==name){
+		        return i;
+	             }
+            }
+        }
+        return -1;   // there are no free fds (return -1)
+    }
+  
+      
+    /**
+     * Handle the halt() system call. 
+     */
+    private int handleHalt() {
+
+	Machine.halt();
+	
+	Lib.assertNotReached("Machine.halt() did not halt machine!");
+	return 0;
+    }
+    /**
+     * Handle the "creat()" system call
+     *  param: 
+     *   int filename_address: the address in virtual memory of the filename to open/create
+     */
+    private int handleCreate(int filename_address) {
+        //make sure there is an available file descriptor
+        int fd = getNextFileDescriptor();
+        if(fd==-1){
+	    return -1;
+        } 
+        //sanitize memory address?  BULLET PROOF
+        //read string from memory into buffer
+        String filename = readVirtualMemoryString(filename_address, 256);  //DAC TO DO: make sure maxlength is appropriate(might need to be less than 256)
+        //sanitize string BULLET PROOF
+        //create OpenFile to hold about to be created file 
+        OpenFile file = ThreadedKernel.fileSystem.open(filename, true);
+        //put open file into array of file descripters
+        file_descriptors[fd]=file;
+        // return file descriptor
+	return fd;           
+    }
+
+    /**
+     * Handle the "open()" system call
+     *  param: 
+     *   int filename_address: the address in virtual memory of the filename to open/create
+     */
+    private int handleOpen(int filename_address) {
+        //make sure there is an available file descriptor
+        //if there is no available file descriptor, should we put the thread to sleep?  What if there is only one thread in the process DAC ???
+        int fd = getNextFileDescriptor();
+        if(fd==-1){
+	    return -1;
+        } 
+        //sanitize memory address?  BULLET PROOF
+        //read string from memory into buffer
+        String filename = readVirtualMemoryString(filename_address, 256);  //DAC TO DO: make sure maxlength is appropriate(might need to be less than 256)
+        //sanitize string BULLET PROOF
+        //create OpenFile to hold about to be created file 
+        OpenFile file = ThreadedKernel.fileSystem.open(filename, false);
+        if(file==null){
+	    return -1;
+        }
+        //put open file into array of file descripters
+        file_descriptors[fd]=file;
+        // return file descriptor
+	return fd;           
+    }
+    private int handleRead(int fd, int buffer_address, int num_bytes) {
+        //sanitize check fd
+        if(fd<0||fd>15||file_descriptors[fd]==null){
+            System.out.print("Invalid File Descriptor in hanldeRead()\n");
+	    return -1;
+        }
+	//sanitize buffer_address DAC BULLET PROOF
+        //make sure num_bytes is acceptable (doesn't cause read too far, positive, etc) DAC BULLET PROOF
+        int offset=0;     //offset to read into buffer
+        byte[] buffer= new byte[96];
+        int toRead=0;
+        int remaining_bytes=num_bytes;
+        int total_read=0;
+        int read=0;
+        int written=0;
+        while(remaining_bytes>0){
+        	toRead=Math.min(96,remaining_bytes);
+                System.out.print("toRead Amount:\t"+toRead+"\n");
+                System.out.print("Reading into readBuffer "+toRead+" bytes\n");
+                read=file_descriptors[fd].read(buffer, 0, toRead);
+                System.out.print("After read in OpenFile.read():\t" + read + "bytes read\n");   //DAC DEBUG
+                if(read<0){    //something went wrong
+                    System.out.print("read less than 0, something fishy up in hanldeRead\n");
+		    return -1;
+                }
+                System.out.print("Attempting to write read material to virtual address\n");
+                written=writeVirtualMemory(buffer_address, buffer, 0, read);
+                if(read!=written){        
+                    System.out.print("Something wrong with writeVirtualMemory in handleRead()\n");
+		    return -1;            //something went wrong?
+                } 
+                total_read+=read;
+                remaining_bytes-=read;       
+                buffer_address+=read;
+                if(read<toRead){
+		    break;   //break out, no more to read     
+		}
+	}
+        System.out.print("Total Read from Read:\t"+total_read+"\n");
+        return total_read;          //return the total number of bytes read
+                                    //better make sure all corne cases are dealt with  BULLET PROOF DAC  
+    }
+        
+        
+    private int handleWrite(int fd, int buffer_address, int num_bytes) {
+        //sanitize check fd
+        if(fd<0||fd>15||file_descriptors[fd]==null){
+            System.out.print("Invalid File Descriptor in hanldeRead()\n");
+	    return -1;
+        }
+	//sanitize buffer_address DAC BULLET PROOF
+        //make sure num_bytes is acceptable (doesn't cause read too far, positive, etc) DAC BULLET PROOF
+        int offset=0;     //offset to read into buffer
+        byte[] buffer= new byte[4096];
+        int toWrite=0;
+        int remaining_bytes=num_bytes;
+        int total_written=0;
+        int read=0;
+        int written=0;
+        while(remaining_bytes>0){
+        	toWrite=Math.min(4096,remaining_bytes);
+                read=readVirtualMemory(buffer_address, buffer, 0, toWrite);  //make sure reads appropriate mem BULLET PROOF
+                System.out.print("After read in handleWrite() readVirtualMemory returned:\t" + read + "\n");  //DAC DEBUG             
+                written=file_descriptors[fd].write(buffer, 0, read);
+                if(read!=written){
+		    System.out.print("Read and written are different in writeHandle()\n");
+                    return -1;
+                }
+                if(toWrite!=written){
+		    System.out.print("Didn't write all bytes in writeHandle()\n");
+                    return -1;
+                }
+                total_written+=written;
+                remaining_bytes-=written;
+                buffer_address+=written;
+        }
+        System.out.print("Total Written from Written:\t"+total_written+"\n");
+        return total_written;  
+                                    //better make sure all corne cases are dealt with  BULLET PROOF DAC  
+    }
+    /*        //sanitize check fd
+        if(fd<0||fd>15||file_descriptors[fd]==null){
+            System.out.print("Invalid File Descriptor in handleWRite()\n");   //DAC DEBUG
+	    return -1;
+        }
+	//sanitize buffer_address DAC BULLET PROOF
+        //make sure num_bytes is acceptable (doesn't cause read too far, positive, etc) DAC BULLET PROOF
+        int offset=0;     //offset to read into buffer
+        int remaining_bytes=num_bytes;
+        int written=0;
+        int read=0;
+        int total_written=0;
+        while(remaining_bytes>0){
+	    if(remaining_bytes<=BUFF_SIZE){
+                read=readVirtualMemory(buffer_address, writeBuffer, 0, remaining_bytes);  //make sure reads appropriate mem BULLET PROOF
+                System.out.print("In hanldeWrite, remaining bytes:\t"+remaining_bytes+"\n");  //DAC DEBUG
+                System.out.print("After read in handleWrite() readVirtualMemory returned:\t" + read + "\n");  //DAC DEBUG             
+                written=file_descriptors[fd].write(writeBuffer, 0, read);
+                if(read!=written||written!=remaining_bytes){        
+		    return -1;            //something went wrong
+                } 
+                remaining_bytes-=written;
+                total_written+=written;
+                buffer_address+=written;
+                return total_written;          //it's written it all, check maybe that total_written==num_bytes DAC BULLET PROOF
+	    }else if(remaining_bytes>BUFF_SIZE){ 
+                read=readVirtualMemory(buffer_address, writeBuffer, 0, BUFF_SIZE);  //make sure reads appropriate mem BULLET PROOF
+                System.out.print("After read in handleWrite() readVirtualMemory full-buff:\t" + read + "\n");  //DAC DEBUG              
+                written=file_descriptors[fd].write(writeBuffer, 0, read);                
+                if(read!=written||written<BUFF_SIZE){        
+		    return -1;            //something went wrong
+                }
+                remaining_bytes-=written;
+                total_written+=written;
+                buffer_address+=written;
+            }
+	}
+	return -1;                  //should never get here? BULLET PROOF
+    }
+    */
+    /*
+     * close(): Frees a file descriptor
+     */
+     private int handleClose(int fd){
+        //sanitize check fd
+        if(fd<0||fd>15){
+	    return -1;
+        }else{
+	    file_descriptors[fd]=null;   
+	}
+        return 0;
+     }
+
+    /*
+     * unlink(): Frees a file descriptor and removes the file
+     */
+     private int handleUnlink(int filename_address){
+        //sanitize check string address
+          String filename = readVirtualMemoryString(filename_address, 256);  //DAC TO DO: make sure maxlength is appropriate(might need to be less than 256)
+          int i=searchNameFileDescriptor(filename);
+          while(i>-1){ 
+	      handleClose(i);
+              i=searchNameFileDescriptor(filename);
+	  }
+          //close file descriptors which have this as name
+            System.out.print("trying to remove: "+filename+"\n");
+            boolean killed=ThreadedKernel.fileSystem.remove(filename);   //kill it!
+            System.out.print("Killed succesfully = :"+ killed+"\n");
+        return 0;
+     }
+
+    private static final int
+        syscallHalt = 0,
+	syscallExit = 1,
+	syscallExec = 2,
+	syscallJoin = 3,
+	syscallCreate = 4,
+	syscallOpen = 5,
+	syscallRead = 6,
+	syscallWrite = 7,
+	syscallClose = 8,
+	syscallUnlink = 9;
+
+    /**
+     * Handle a syscall exception. Called by <tt>handleException()</tt>. The
+     * <i>syscall</i> argument identifies which syscall the user executed:
+     *
+     * <table>
+     * <tr><td>syscall#</td><td>syscall prototype</td></tr>
+     * <tr><td>0</td><td><tt>void halt();</tt></td></tr>
+     * <tr><td>1</td><td><tt>void exit(int status);</tt></td></tr>
+     * <tr><td>2</td><td><tt>int  exec(char *name, int argc, char **argv);
+     * 								</tt></td></tr>
+     * <tr><td>3</td><td><tt>int  join(int pid, int *status);</tt></td></tr>
+     * <tr><td>4</td><td><tt>int  creat(char *name);</tt></td></tr>
+     * <tr><td>5</td><td><tt>int  open(char *name);</tt></td></tr>
+     * <tr><td>6</td><td><tt>int  read(int fd, char *buffer, int size);
+     *								</tt></td></tr>
+     * <tr><td>7</td><td><tt>int  write(int fd, char *buffer, int size);
+     *								</tt></td></tr>
+     * <tr><td>8</td><td><tt>int  close(int fd);</tt></td></tr>
+     * <tr><td>9</td><td><tt>int  unlink(char *name);</tt></td></tr>
+     * </table>
+     * 
+     * @param	syscall	the syscall number.
+     * @param	a0	the first syscall argument.
+     * @param	a1	the second syscall argument.
+     * @param	a2	the third syscall argument.
+     * @param	a3	the fourth syscall argument.
+     * @return	the value to be returned to the user.
+     */
+    public int handleSyscall(int syscall, int a0, int a1, int a2, int a3) {
+	int filename_addr=0;
+        int fd=0;
+	int num_bytes=0;
+        int buffer_address=0;
+
+	switch (syscall) {
+	case syscallHalt:
+	    return handleHalt();
+
+        case syscallCreate:
+            filename_addr=a0; 
+            //sanity check filename_addr
+            return handleCreate(filename_addr);
+
+	case syscallOpen:
+	    filename_addr=a0;
+            //sanity check filename_addr
+            return handleOpen(filename_addr);
+	case syscallRead:
+            fd=a0;  //file descripter should be a0
+            buffer_address = a1;  //buffer to read from 
+            num_bytes = a2;  //number of bites to be written
+            //check to see file descriptor valid
+            //check to see if buffer is valid
+            //ensure count is non-negative/valid
+            return handleRead(fd, buffer_address, num_bytes);    //call hanlder that handles "read"  (make sure to add correct arguments)DAC             
+            
+
+        case syscallWrite:           //int write(int fileDescriptor, void *buffer, int count);
+            fd=a0;  //file descripter should be a0
+            buffer_address=a1;  //buffer to read from 
+            num_bytes = a2;  //number of bites to be written
+            //check to see file descriptor valid
+            //check to see if buffer is valid
+            //ensure count is non-negative/valid
+            return handleWrite(fd, buffer_address, num_bytes);    //call hanlder that handles "write"  (make sure to add correct arguments)DAC  
+         
+        case syscallClose:
+	    fd=a0;   //sanitize?
+	    return handleClose(fd);
+ 
+	case syscallUnlink:
+	    fd=a0;
+	    return handleUnlink(fd);
+            
+
+
+	default:
+	    Lib.debug(dbgProcess, "Unknown syscall " + syscall);
+	    Lib.assertNotReached("Unknown system call!");
+	}
+	return 0;
+    }
+
+    /**
+     * Handle a user exception. Called by
+     * <tt>UserKernel.exceptionHandler()</tt>. The
+     * <i>cause</i> argument identifies which exception occurred; see the
+     * <tt>Processor.exceptionZZZ</tt> constants.
+     *
+     * @param	cause	the user exception that occurred.
+     */
+    public void handleException(int cause) {
+	Processor processor = Machine.processor();
+
+	switch (cause) {
+	case Processor.exceptionSyscall:
+	    int result = handleSyscall(processor.readRegister(Processor.regV0),
+				       processor.readRegister(Processor.regA0),
+				       processor.readRegister(Processor.regA1),
+				       processor.readRegister(Processor.regA2),
+				       processor.readRegister(Processor.regA3)
+				       );
+	    processor.writeRegister(Processor.regV0, result);
+	    processor.advancePC();
+	    break;				       
+				       
+	default:
+	    Lib.debug(dbgProcess, "Unexpected exception: " +
+		      Processor.exceptionNames[cause]);
+	    Lib.assertNotReached("Unexpected exception");
+	}
+    }
+
+    /** The program being run by this process. */
+    protected Coff coff;
+
+    /** This process's page table. */
+    protected TranslationEntry[] pageTable;
+    /** The number of contiguous pages occupied by the program. */
+    protected int numPages;
+
+    /** The number of pages in the program's stack. */
+    protected final int stackPages = 8;
+    
+    //public for now: array of files associated with this process
+    private final int NUM_FD = 16;    //number of files to support
+    private OpenFile[] file_descriptors= new OpenFile[NUM_FD];    //array of fileDescriptors for this process
+
+    private int initialPC, initialSP;
+    private int argc, argv;
+	
+    private static final int pageSize = Processor.pageSize;
+    private static final char dbgProcess = 'a';
+
+
+                                                                                                                                                      
+
+
+    	public void testFileSystem(){
+	    int flag=0;
+            int read=0;
+            int written=0;
+            byte[] writeBuffer= new byte[4096];
+            byte[] readBuffer= new byte[4096];
+
+            OpenFile file = ThreadedKernel.fileSystem.open("blooper", true);
+            if(file==null){
+		System.out.print("Something wrong with fileSystem.open()\n");
+            }
+            flag=getNextFileDescriptor();
+	    System.out.print("Flag value given by getNextFileDescriptor():\t" + flag + "\n");
+            file_descriptors[flag]=file;
+            if(file_descriptors[flag]==null){
+		System.out.print("Something wrong with file_descriptors[flag]:\t has a null value\n");
+            }else{
+                for(int i=0; i<4096;i+=2){
+		    writeBuffer[i]=98;
+                }
+                for(int i=1; i<4096;i+=2){
+		    writeBuffer[i]=0;
+                }
+                written=file_descriptors[flag].write(writeBuffer, 0, 2000);
+		//                written=file_descriptors[1].write(writeBuffer, 0, 40);   //try writing to stdout
+                if(written<0){
+		    System.out.print("Error writing to file\n");
+                }
+                System.out.print("Wrote to file," + written + " bytes of value "+writeBuffer[0]+"\n");  
+		/*	System.out.print("Buffer Accessed, reading from file\n");
+                //read=file_descriptors[flag].read(0, readBuffer, 0, 2000);
+	                       System.out.print("Attempting to read from stdin\n");
+		//read=file_descriptors[0].read(0, readBuffer, 0, 20);
+		System.out.print("Read from file," + read + " bytes of value "+readBuffer[0]+"\n");  */
+
+                
+		    return;    
+    	    }
+	}  
+
+                
+
+
+}
