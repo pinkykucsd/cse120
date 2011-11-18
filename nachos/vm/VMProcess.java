@@ -29,7 +29,7 @@ public class VMProcess extends UserProcess {
      * <tt>UThread.restoreState()</tt>.
      */
     public void restoreState() {
-	super.restoreState();
+	super.restoreState();     //might need to undo the "setPageTable" command in super since we are no longer using a pageTable in processor? DAC ???
     }
 
     /**
@@ -61,6 +61,12 @@ public class VMProcess extends UserProcess {
 	Processor processor = Machine.processor();
 
 	switch (cause) {
+        case Processor.exceptionTLBMiss:
+	    //Add code for TLBMiss DAC
+            int badAddr=Machine.processor().readRegister(Processor.regBadVAddr);   //read bad address from designated register
+            
+            break;
+        
 	default:
 	    super.handleException(cause);
 	    break;

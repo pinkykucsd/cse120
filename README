@@ -22,3 +22,8 @@ Project 3 Map
     public static final int exceptionIllegalInstruction = 7;
 
    c:  exception gets handled in VMProcess, so it use the badaddress (available from Processor.regBadVAddr - see task I).  If TLBMiss exception, get the address mapping from the page table and then set it in TLB by randomly kicking another out (if full?).  If it isn't in page table.... 
+
+2.  Overall data structures:
+    a. Page table in VMProcess
+       i. Create to be appropriate size in "load" or "load sections"  but don't populate entries.
+    b. Page table in VMKernel associates physical pages with virtual pages
