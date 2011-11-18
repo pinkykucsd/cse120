@@ -1,0 +1,164 @@
+nachos 5.0j initializing... config interrupt timer processor console user-check grader
+
+ThreadedKernel Initializing
+*** awesome thread 0 looped 0 times
+*** awesome thread 1 looped 0 times
+*** awesome thread 0 looped 1 times
+*** awesome thread 1 looped 1 times
+*** awesome thread 0 looped 2 times
+*** awesome thread 1 looped 2 times
+*** awesome thread 0 looped 3 times
+*** awesome thread 1 looped 3 times
+*** awesome thread 0 looped 4 times
+*** awesome thread 1 looped 4 times
+
+Da Semaphore thread is about to be made for the selfTest...
+Synch Self Test Thread...
+Testing the console device. Typed characters
+will be echoed until q is typed.
+q
+Creating a process
+ with PID:	0
+0Executing name & args
+Loading
+Loading Sections
+handleSyscall
+handleWrite
+readVirtualMemory
+nachos% handleSyscall
+handleRead
+WriteVirtualMemory
+handleSyscall
+handleWrite
+readVirtualMemory
+ehandleSyscall
+handleRead
+WriteVirtualMemory
+handleSyscall
+handleWrite
+readVirtualMemory
+chandleSyscall
+handleRead
+WriteVirtualMemory
+handleSyscall
+handleWrite
+readVirtualMemory
+hhandleSyscall
+handleRead
+WriteVirtualMemory
+handleSyscall
+handleWrite
+readVirtualMemory
+ohandleSyscall
+handleRead
+WriteVirtualMemory
+handleSyscall
+handleWrite
+readVirtualMemory
+ handleSyscall
+handleRead
+WriteVirtualMemory
+handleSyscall
+handleWrite
+readVirtualMemory
+fhandleSyscall
+handleRead
+WriteVirtualMemory
+handleSyscall
+handleWrite
+readVirtualMemory
+uhandleSyscall
+handleRead
+WriteVirtualMemory
+handleSyscall
+handleWrite
+readVirtualMemory
+chandleSyscall
+handleRead
+WriteVirtualMemory
+handleSyscall
+handleWrite
+readVirtualMemory
+khandleSyscall
+handleRead
+WriteVirtualMemory
+handleSyscall
+handleWrite
+readVirtualMemory
+
+handleSyscall
+handleExec
+readVirtualMemory
+Filename in exec:	echo.coffCount:	2
+readVirtualMemory
+readVirtualMemory
+readVirtualMemory
+args to exec:	echo
+args to exec:	fuck
+Creating a process
+ with PID:	1
+2Executing name & args
+name:	echo.coff	args:	[Ljava.lang.String;@186768e
+name:	echo.coff	args:	[Ljava.lang.String;@186768e
+Loading
+Loading Sections
+WriteVirtualMemory
+WriteVirtualMemory
+WriteVirtualMemory
+WriteVirtualMemory
+WriteVirtualMemory
+WriteVirtualMemory
+handleExit
+Unload Sections
+i:	0	14
+i:	1	14
+i:	2	14
+i:	3	14
+i:	4	14
+i:	5	14
+i:	6	14
+i:	7	14
+i:	8	14
+i:	9	14
+i:	10	14
+i:	11	14
+i:	12	14
+i:	13	14
+0
+handleClose
+handleClose
+PID of Process before the very end 0
+handleSyscall
+handleWrite
+Invalid File Descriptor in hanldeWrite()
+handleSyscall
+handleWrite
+Invalid File Descriptor in hanldeWrite()
+handleSyscall
+handleWrite
+Invalid File Descriptor in hanldeWrite()
+handleSyscall
+handleExit
+Unload Sections
+i:	0	14
+i:	1	14
+i:	2	14
+i:	3	14
+i:	4	14
+i:	5	14
+i:	6	14
+i:	7	14
+i:	8	14
+i:	9	14
+i:	10	14
+i:	11	14
+i:	12	14
+i:	13	14
+0
+Machine halting!
+
+Ticks: total 20886464, kernel 20883290, user 3174
+Disk I/O: reads 0, writes 0
+Console I/O: reads 11, writes 19
+Paging: page faults 1, TLB misses 0
+Network I/O: received 0, sent 0

@@ -1,0 +1,118 @@
+package nachos.threads;
+
+import nachos.machine.*;
+
+/**
+ * A <i>communicator</i> allows threads to synchronously exchange 32-bit
+ * messages. Multiple threads can be waiting to <i>speak</i>,
+ * and multiple threads can be waiting to <i>listen</i>. But there should never
+ * be a time when both a speaker and a listener are waiting, because the two
+ * threads can be paired off at this point.
+ *
+ */
+public class Communicator {
+    /**
+     * Allocate a new communicator.
+     */
+    private Lock mylock;
+    private Condition listeners;
+    private Condition speakers;
+    private Condition pairs;
+    private boolean spoken;
+    private int myword;
+    private int numberOfSpeakers = 0;
+    private int numListeners=0;
+
+    public Communicator() {
+
+        // Create lock, to enable control and sync
+        this.mylock = new Lock();
+        //creates a linklist of listeners (like a qunue or line)
+        this.listeners = new Condition(mylock);
+        //creates a linklist of speakers to keep track
+        this.speakers = new Condition(mylock);
+        //linklist of pairs
+        this.pairs = new Condition(mylock);
+        // sets boolan to be false b/c no word is being speak or listen
+        this.spoken = false;
+
+
+    }
+
+    /**
+     * Wait for a thread to listen through this communicator, and then transfer
+     * <i>word</i> to the listener.
+     *
+     * <p>
+     * Does not return until this thread is paired up with a listening thread.
+     * Exactly one listener should receive <i>word</i>.
+     *
+     * @param    word    the integer to transfer.
+     */
+    public void speak(int word) {
+        this.mylock.acquire();     
+        while (spoken== true)
+	    {
+		//increment speakers if another speaker already spoke
+		numberOfSpeakers++;
+		//put speakers to sleep
+		speakers.sleep();
+		//when wakes up decrement speakers
+		numberOfSpeakers--;
+	    }
+        //sets the word into what was passed in
+        this.myword = word;
+        this.spoken= true;
+       
+        //need to check if there are listeners
+        //wake up listeners to get word
+        if(numListeners>=1)
+	    {
+		this.listeners.wake();
+	    }
+        else
+	    {
+           
+		speakers.sleep();
+           
+	    }
+       
+        //put pairs to sleep
+        this.pairs.sleep();
+        this.mylock.release();
+    }
+
+    /**
+     * Wait for a thread to speak through this communicator, and then return
+     * the <i>word</i> that thread passed to <tt>speak()</tt>.
+     *
+     * @return    the integer transferred.
+     */   
+    public int listen() {
+	//acquire lock to ensure sync
+	this.mylock.acquire();
+	numListeners++;
+	// if no word as been spoken yet
+	while (spoken== false )
+	    {
+		listeners.sleep();
+	    }
+	//no speakers, meaning no word as been spoken
+	if (numberOfSpeakers == 0)
+	    {
+		// means no word has been spoken yet, becuase there are no speakers
+		this.spoken= false;
+	    }
+	// return the word that the speaker as spoke and listener has listen
+	int returnword = this.myword;
+	// wake up pairs
+	this.pairs.wake();
+	numListeners--;
+	// realse the lock
+	this.mylock.release();
+	//return
+	return returnword;
+    }
+
+}//end of Communicator method
+
