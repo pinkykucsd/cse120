@@ -26,4 +26,30 @@ Project 3 Map
 2.  Overall data structures:
     a. Page table in VMProcess
        i. Create to be appropriate size in "load" or "load sections"  but don't populate entries.
-    b. Page table in VMKernel associates physical pages with virtual pages
+       ii. Needs to maintain information on whether page is:
+       	   1. On disk
+	   2. from coff, args, stack
+	   3. TranlsationEntry stuff - used, valid, etc
+       iii.  Solution:  Make page table an array of TranslationEntries
+       	     1. use dirty to mark if true (if dirty true but invalid and not coff, must be on disk)
+	     2. use ppn to mark page in swap file, if invalid and on disk, label it -1 if invalid and not on disk?
+	     3. use "used" for clock alg
+	     4. calculate whether coff, args or stack on fly with special function based on size of coff pages?
+    b. Page table in VMKernel associates physical pages with virtual pages (used for evicting)
+       i. This structure is important because it is used to evict pages from main memory
+       ii.  initialize with the kernel - there is no need for a free page pool, since all pages will be considered when fetching a page, but we could have one to speed things up (don't bother probably)
+       iii. Solution: Make page table an array of buckets
+       	    1. bucket should contain whether or not the page is pinned
+	    2. bucket should contani a "used" bit indicating whether or not the page has been used since the last time the clock algorithm was run
+	    3. bucket should contain a reference to the process that currently "owns" this page
+    c. Swap file and free pages structure for "disk"
+       i. Swap file will be accessed by reading and writing pages only
+       ii. information about the swap file should be in a data structure that can keep track of free pages
+       	   1. these pages should ensure that the swap file never gets larger if it doesn't need to (write to lowest free part of the page first)
+	   2. these pages should enable file to get smaller as it goes
+       iii.  Solution:  design decision needed - implement like malloc or "as you go"? (currently "as you go")
+       	     1. basically, should we always move pages "down" in the file to make the file as small as possible?
+	     2. or is it ok to have holes which will be represented as "free pages" in the file? (current choice)
+	     	a. makes things easier on VMProcess having a mapping of swap file
+       iv. swap file will be accessed by VMProcess (which contains swap file address to get).  Data will be copied to physical memory from VMProcess, data cleared in swapFile (zeroed)
+       
