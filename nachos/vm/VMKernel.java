@@ -26,6 +26,7 @@ public class VMKernel extends UserKernel {
         swapFile=this.fileSysetm.open(swapFileName, true);  //make sure this works DEBUG DAC
         numSwapPages=0; //there are no pages in swap at beginning
         numPhysPages = Machine.processor().getNumPhysPagse();
+        invertedPageTable = new invertedBucket[numPhysPages];
         initInvertedPageTable(numPhysPages); //initialize invertedPageTable 
         memLock= new Lock(); //create the memory lock
         //create all entries in TLB invalid?  (prob not necessary)
@@ -64,7 +65,7 @@ public class VMKernel extends UserKernel {
      **/
     private void initInvertedPageTable(int numPages){
 	for(int i=0;i<numPhysPages;i++){
-	    invertedPageTable.add(new invertedBucket(new TranslationEntry(), false, false, null)); // DEBUG DAC  (might not need tEntry)
+	    invertedPageTable[i]=new invertedBucket(new TranslationEntry(), false, false, null); // DEBUG DAC  (might not need tEntry)
 	}
     }
     /**
@@ -92,7 +93,7 @@ public class VMKernel extends UserKernel {
     private void assignPage(int ppn, VMProcess process, int vpn) {
         //code
         //might need to call lock, but should already have lock in getAvailablePage
-        invertedBucket bucky=invertedPageTable.get(ppn);
+        invertedBucket bucky=invertedPageTable[ppn];
         bucky.tEntry.ppn=ppn;
         bucky.tEntry.vpn=vpn;
         bucky.tEntry.valid=true; //not necessary? DAC DEBUG 
@@ -132,7 +133,7 @@ public class VMKernel extends UserKernel {
      */
     private void evictPage(int ppn) {
         int vpn = invertedPageTable.get(ppn).tEntry.vpn;    
-        VMProcess process = invertedPageTable.get(ppn).process;
+        VMProcess process = invertedPageTable[ppn].process;
 	    //call savePage() to save physical page to swap if necessary and notify process that its page is invalid 'n' stuff
 	process.savePage(vpn);  
             //call zeros() to zero out page?  (maybe not necessary, don't worry about for now)
@@ -169,7 +170,7 @@ public class VMKernel extends UserKernel {
         int availablePage=-1; //the ppn we're after
         memLock.acquire();   //might be a better place to do this, but we definitely need it.  //also, be sure to order the locks  DAC DEBUG
         availablePage=clockAlgorithm();  //get the page we're going to give to the user
-        if(invertedPageTable.get(availablePage).assigned==true){   //the page already has  an owner
+        if(invertedPageTable[availablePage].assigned==true){   //the page already has  an owner
 	    evictPage(availablePage);   //take it away from someone
         }
         assignPage(availablePage,process, vpn);  //assign the page to the right process
@@ -190,7 +191,7 @@ public class VMKernel extends UserKernel {
     /*might need to make "buckets" so we can keep track of PID, but for now will use ppn for pid since it doesn't seem to have a purpose if we index into this table by ppn  */
     private final String swapFileName="swapswapswap.swp"; //name of swap file
     private int numSwapPages;
-    private LinkedList<invertedBucket> invertedPageTable;
+    private invertedBucket[] invertedPageTable;
     public int numPhysPages;
     public Lock memLock;         //lock accessed for each memory maintenance stuff (pinning, get page, etc)
     private int currentPage=0;  //the page currently pointed to by the clock algorithm

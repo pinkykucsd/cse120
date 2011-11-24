@@ -22,6 +22,18 @@ public class VMProcess extends UserProcess {
      */
     public void saveState() {
         //make all entries in TLB invalid (they all refer to this process's virtual address space)   //DAC
+        //might need to save a copy of TLB for use upon restore
+        for (int i = 0; i < Machine.processor().getTLBSize(); i++) {
+	    TranslationEntry entry = Machine.processor().readTLBEntry(i);
+	    if (entry.valid) {
+                //update vpn with values (probably necessary) and update invertedPageTable too
+		pageTable[entry.vpn].dirty = entry.dirty;     
+		pageTable[entry.vpn].used = entry.used;
+                VMKernel.invertedPageTable[entry.ppn].used=entry.used;    //DAC   
+		entry.valid = false;
+		Machine.processor().writeTLBEntry(i, entry);  //Unnecessary?? DAC DEBUG
+	    }
+	}
 	super.saveState();
     }
 
@@ -30,6 +42,7 @@ public class VMProcess extends UserProcess {
      * <tt>UThread.restoreState()</tt>.
      */
     public void restoreState() {
+        //might need to restore a saved copy of TLB?
 	super.restoreState();     //might need to undo the "setPageTable" command in super since we are no longer using a pageTable in processor? DAC ???
     }
 
@@ -67,17 +80,16 @@ public class VMProcess extends UserProcess {
         case Processor.exceptionTLBMiss:
 	    //Add code for TLBMiss DAC
             int badAddr=Machine.processor().readRegister(Processor.regBadVAddr);   //read bad address from designated register
-            //checkAddress()
-                //get virtual page from badAddr
-                //get entry corresponding to that vpn in pageTable in this process
-                //return whether or not "valid"
-            //if(checkaddress()===valid)..
-	        //addToTLB() (add translation entry to TLB)
-	            //kick out random entry (maybe make sure TLB is full first)
-	            //put entry into tlb with valid bit set
-	    //else
-	        //call VMKernel.getAvailablePage()  (get a page of physical memory from Kernel, see getAvailablePage() in VMKernel)
-                //initializePage() (initialize page with appropriate information)
+            int vpn = Processor.pageFromAddress(badAddr);                  //get virtual page from badAddr
+            //invalid VPN in the first place
+	    if (vpn < 0 || vpn >= pageTable.length){
+                //return false;  gotta do something here, but what?  DAC DEBUG!!! 
+            }
+            if(checkValidAddress(vpn)==false){
+                int newPage = VMKernel.getAvailablePage();   //gimme a page to use biznitch!  DAC
+                initializePage(newPage,vpn);   //initialize page with information
+            }
+            addToTLB(vpn);   //add entry to TLB
 	            //if read-only coff, get from load()/loadSections()/wherever I find that info
                     //if on disk, call VMKernel.getPageFromSwap(spn) (get page from swap file (info maintained in Kernel) from page spn in swap file)
 	                 //spn will be stored in VMProcess.pageTable as a physical page number.  VMProcess will know it is on swap if dirty ==1 and valid==0
@@ -91,13 +103,13 @@ public class VMProcess extends UserProcess {
 	    break;
 	}
     }
-    /**
+    /**************************************************************************************************************************************************
      * updateTLB -update TLB so that entry with vpn (if exists) is valid/valid 
      * params:
      *   int vpn - the vpn to search for in TLB, set this entry to invalid
      *   boolean valid - value to set valid
      * returns - n/a
-     */
+     *****************************************************************************************************************************************************/
     private void updateTLB(int vpn, boolean valid) {
         TranslationEntry entry;
 	for (int i = 0; i < Machine.processor().getTLBSize(); i++){
@@ -108,12 +120,12 @@ public class VMProcess extends UserProcess {
         }
        return;
    }
-    /**
+    /**********************************************************************************************************************************************
      * savePage - save page to swap if it needs to be, tell process shit went down
      * params:
      *   ppn - the page in invertedPageTable to save/zero out
      * returns - n/a
-     */
+     *********************************************************************************************************************************************/
    private void savePage(int vpn) {
         //figure out if page needs to be saved to swap
        TranslationEntry tEntry=pageTable[vpn];   //DAC DEBUG - make sure that
@@ -126,18 +138,72 @@ public class VMProcess extends UserProcess {
        return;
    }
 
-        
-        //if needs to be saved to swap, call addToSwap(ppn)
-        //tell process with pid that the page with virtual address of (whatever the virtual address was for that page - look up in invertedPageTable)
-        //    is no longer valid, and if is in swap file, give the page number in swap file (returned by addToSwap() )
-        return;
-    }
     /*************************************************************************************************************************************
      * checkAddress():  scans page table of VMProcess to see if there is a valid page 	
      * params:
      *    vAddr - the virtual address to check
      * return - true if address is valid
      ************************************************************************************************************************************/
+    //checkAddress()
+    //get virtual page from badAddr
+    //get entry corresponding to that vpn in pageTable in this process
+    //return whether or not "valid"
+    public boolean checkValidAddress(int vpn){
+	//get entry corresponding to that vpn in pageTable in this process
+	TranslationEntry entry = pageTable[vpn];
+	if(entry.valid){
+	    return true;
+	}else{
+	    return false;
+        }
+    }
+
+    /*************************************************************************************************************************************
+     * addToTLB: adds translation entry to TLB
+     * params:
+     *    vAddr - the virtual address of the entry to add
+     * return - void
+     ************************************************************************************************************************************/
+    public void addToTLB(int vpn){
+        //PK:checkinf for free entry.
+	// stores the Id/entry of the trasnlation entry that will be replaced
+	int freeEntry = -1;
+	// looping through TLB table, trying to find free index to write to
+	//checking if full
+	for (int i = 0; (i < Machine.processor().getTLBSize()) && (freeEntry == -1); i++){
+		TranslationEntry entry = Machine.processor().readTLBEntry(i);
+		if (!entry.valid){
+		    freeEntry = i;
+                }
+	}
+	// PK: if no free entry was found, we replace by Random b/c TLB is full
+	if (freeEntry == -1){
+		freeEntry = random.nextInt(Machine.processor().getTLBSize());
+	}//end of IFstatement of no free entry found
+        //write to tlb at appropriate spot with entry from pageTable
+	Machine.processor().writeTLBEntry(freeEntry, pageTable[vpn]);    //assumes pageTable[vpn] is set and valid, DAC DEBUG
+    }//end of addtoTLB
+
+
+
+
+	    
+     
+    /*************************************************************************************************************************************
+     * initializePage: fill page with appropriate data
+     * params:
+     *    int pageFromKern - physical page to fill w/appropriate data
+     *    int vpn - the virtual page we're interested in
+     * return - void
+     ************************************************************************************************************************************/
+    //initializePage(getspagefromkernel) (initialize page with appropriate information)
+
+    public void initializePage(int pagefromKern, int vpn){
+        int ppn = pageFromKern;
+	boolean executablePage=false; 
+        
+        return;
+    }
     private static final int pageSize = Processor.pageSize;
     private static final char dbgProcess = 'a';
     private static final char dbgVM = 'v';
