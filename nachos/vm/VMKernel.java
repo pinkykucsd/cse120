@@ -64,7 +64,7 @@ public class VMKernel extends UserKernel {
      **/
     private void initInvertedPageTable(int numPages){
 	for(int i=0;i<numPhysPages;i++){
-	    invertedPageTable.add(new TranslationEntry(-1, -1, false, false, false, false)); //maybe -1 won't work DEBUG DAC
+	    invertedPageTable.add(new invertedBucket(new TranslationEntry(), false, false, null)); // DEBUG DAC  (might not need tEntry)
 	}
     }
     /**
@@ -85,28 +85,23 @@ public class VMKernel extends UserKernel {
      * assignPage - changes values in invertedPageTable to assign to process with id pid
      * params:
      *   ppn - the page in invertedPageTable to modify
-     *   pid - the process id to assign to that page
+     *   VMProcess - the process to assign to that page
+     *   vpn - the vpn in the process wit which this will be associated 
      * returns - n/a
      */
-    private void assignPage() {
+    private void assignPage(int ppn, VMProcess process, int vpn) {
         //code
+        //might need to call lock, but should already have lock in getAvailablePage
+        invertedBucket bucky=invertedPageTable.get(ppn);
+        bucky.tEntry.ppn=ppn;
+        bucky.tEntry.vpn=vpn;
+        bucky.tEntry.valid=true; //not necessary? DAC DEBUG 
+        bucky.assigned=true;
+        bucky.used=true; //do we want to do this? DAC DEBUG ???
+        bucky.process=process;
         return;
     }
-    /**
-     * savePage - save page to swap if it needs to be, tell process shit went down
-     * params:
-     *   ppn - the page in invertedPageTable to save/zero out
-     *   pid - the process id to of the process that owns this page
-     * returns - n/a
-     */
-    private void savePage(int ppn, int pid) {
-        //code
-        //figure out if page needs to be saved to swap
-        //if needs to be saved to swap, call addToSwap(ppn)
-        //tell process with pid that the page with virtual address of (whatever the virtual address was for that page - look up in invertedPageTable)
-        //    is no longer valid, and if is in swap file, give the page number in swap file (returned by addToSwap() )
-        return;
-    }
+
     /**
      * addToSwap - adds page from invertedPageTable to swap file for storage
      * params:
@@ -114,23 +109,35 @@ public class VMKernel extends UserKernel {
      * returns - the page in swap file where it was saved
      */
     private int addToSwap(int ppn) {
-        //code
         //get next free page from freeSwap.  (consider case when there is no page in freeSwap as well, need to get new page from swap file)
-        //Copy physical page ppn to page of freeSwap just grabbed
+        //maybe use a lock?
+        if(freeSwap.peek()==null){
+	    spn=numSwapPages;
+            numSwappages++;
+        }else{
+            spn=freeSwap.poll();   //Integer object to 
+        }
+        int physicalAddr = ppn*pageSize;  //base of physical page
+        int swapAddr = spn*pageSize;  //base of swap page
+	byte[] memory = Machine.processor().getMemory();
+        swapFile.write(swapAddr,memory,physicalAddr,pageSize);  //DAC DEBUG
         //return the page in swap that it has been saved to
-        return 0; //place holder
+        return spn;
     }
      /**
      * evictPage - kicks a page in physical memory out and notifies the process that owns it
-     * params:  none
-     * returns: ppn of page evicted and ready for use
+     * params:  
+     *   ppn - ppn to evict
+     * returns: N/A
      */
-    private int evictPage() {
-	    //call clockAlgorithm() to figure out which page to get rid of, might be put to sleep if all pages are 'pinned'
+    private void evictPage(int ppn) {
+        int vpn = invertedPageTable.get(ppn).tEntry.vpn;    
+        VMProcess process = invertedPageTable.get(ppn).process;
 	    //call savePage() to save physical page to swap if necessary and notify process that its page is invalid 'n' stuff
+	process.savePage(vpn);  
             //call zeros() to zero out page?  (maybe not necessary, don't worry about for now)
-            //returns ppn of newly-available page in invertedPageTable
-        return 0;  //placeholder
+	//zeros(ppn);
+        return;  //placeholder
     }
      /**
      * clockAlgorithm - determines which page should be evicted, if no pages can be evicted (all pinned) put caller to sleep.
@@ -154,30 +161,22 @@ public class VMKernel extends UserKernel {
      *                      to an "invalid" bit set in their pageTable.  If there aren't any available pages, calls evictPage() to free one
                             and returns it.
      *params:
-     *  int pid - the pid of the process calling this function (the process asking for the page)
+     *  VMProcess process - the process calling this function (the process asking for the page)
+     * int vpn - the virtual page that this will be assigned to
      *returns - the next available page
      *****************************************************************************************************************************************/
-    public int getAvailablePage(){
+    public int getAvailablePage(VMProcess process, int vpn){
         int availablePage=-1; //the ppn we're after
-        
-	//scanForFreePage() - scan invertedPageTable for available page 
-	     //(might want to just use clock algorithm here too)
-	     //(might also want to keep a "pointer"  (an int) that points to the next page, but this can be ignored for now
-             //returns ppn of a free page, if there is one, else -1 or something
-
-        //if there is an available page, assignPage(ppn,pid)
-	   //assignPage(ppn,pid) - record appropriate values into TranslationEntry of invertedPageTable for page ppn,
-	   //                      record PID of process to which page is assigned
-
-        //else if there is not an available page returned by scanForFreePage(), call evictPage()
-	    //evictPage() - calls clockAlgorithm() to figure out which page to get rid of,
-	    //              calls savePage(ppn) to save physical page to swap if necessary and notify process that its page is invalid 'n' stuff
-            //              calls zeros(ppn)to zero out page?  (maybe not necessary, don't worry about for now)
-            //              returns ppn of newly-available page in invertedPageTable
-            //assignPage(ppn, pid) - as above, associate the now-available page with the right values and owner
-	//return the ppn found in 
-        return 0;  //placeholder for now
+        memLock.acquire();   //might be a better place to do this, but we definitely need it.  //also, be sure to order the locks  DAC DEBUG
+        availablePage=clockAlgorithm();  //get the page we're going to give to the user
+        if(invertedPageTable.get(availablePage).assigned==true){   //the page already has  an owner
+	    evictPage(availablePage);   //take it away from someone
+        }
+        assignPage(availablePage,process, vpn);  //assign the page to the right process
+        memLock.release(); //put in handleException DAC DEBUG
+	return availablePage;
     }
+        
 
     // dummy variables to make javac smarter
     private static VMProcess dummy1 = null;
@@ -191,7 +190,7 @@ public class VMKernel extends UserKernel {
     /*might need to make "buckets" so we can keep track of PID, but for now will use ppn for pid since it doesn't seem to have a purpose if we index into this table by ppn  */
     private final String swapFileName="swapswapswap.swp"; //name of swap file
     private int numSwapPages;
-    private LinkedList<TranslationEntry> invertedPageTable;
+    private LinkedList<invertedBucket> invertedPageTable;
     public int numPhysPages;
     public Lock memLock;         //lock accessed for each memory maintenance stuff (pinning, get page, etc)
     private int currentPage=0;  //the page currently pointed to by the clock algorithm

@@ -722,7 +722,7 @@ public class UserProcess {
     private void handleExit(int status){         //AFTER MERGE3 
 	unloadSections();
 	coff.close();
-        for(int i=0;i<file_descriptors.length;i++){
+nn        for(int i=0;i<file_descriptors.length;i++){
 	    if(file_descriptors[i]!=null){
 		handleClose(i);             //this should work
             }

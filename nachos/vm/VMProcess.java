@@ -91,11 +91,53 @@ public class VMProcess extends UserProcess {
 	    break;
 	}
     }
+    /**
+     * updateTLB -update TLB so that entry with vpn (if exists) is valid/valid 
+     * params:
+     *   int vpn - the vpn to search for in TLB, set this entry to invalid
+     *   boolean valid - value to set valid
+     * returns - n/a
+     */
+    private void updateTLB(int vpn, boolean valid) {
+        TranslationEntry entry;
+	for (int i = 0; i < Machine.processor().getTLBSize(); i++){
+             entry = Machine.processor().readTLBEntry(i);
+             if (entry.vpn==vpn){   
+                 entry.valid=valid;
+             }
+        }
+       return;
+   }
+    /**
+     * savePage - save page to swap if it needs to be, tell process shit went down
+     * params:
+     *   ppn - the page in invertedPageTable to save/zero out
+     * returns - n/a
+     */
+   private void savePage(int vpn) {
+        //figure out if page needs to be saved to swap
+       TranslationEntry tEntry=pageTable[vpn];   //DAC DEBUG - make sure that
+       if(tEntry.dirty){    //entry has been written to, save to swap
+           int swapLocation=VMKernel.addToSwap(tEntry.ppn);//add to swap
+           pageTable[vpn].ppn=swapLocation;  //make physical location swap loaction
+       }
+       pageTable[vpn].valid=false;  //this is no longer a valid mapping
+       updateTLB(vpn, false);  //make sure TLB knows this is now invalid
+       return;
+   }
+
+        
+        //if needs to be saved to swap, call addToSwap(ppn)
+        //tell process with pid that the page with virtual address of (whatever the virtual address was for that page - look up in invertedPageTable)
+        //    is no longer valid, and if is in swap file, give the page number in swap file (returned by addToSwap() )
+        return;
+    }
     /*************************************************************************************************************************************
      * checkAddress():  scans page table of VMProcess to see if there is a valid page 	
      * params:
      *    vAddr - the virtual address to check
-     * return - true if 
+     * return - true if address is valid
+     ************************************************************************************************************************************/
     private static final int pageSize = Processor.pageSize;
     private static final char dbgProcess = 'a';
     private static final char dbgVM = 'v';
