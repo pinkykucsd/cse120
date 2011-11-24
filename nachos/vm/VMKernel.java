@@ -21,10 +21,17 @@ public class VMKernel extends UserKernel {
      */
     public void initialize(String[] args) {
         //need to initialize the VMKernel slightly differently: need an inverted page table, a swap file, different locks, 
-	super.initialize(args);  //need to modify super.initialize() into components as described in section to "cut out" the bad parts, but only for VMKernel DAC
-        //initialize swap file         
-        //initialize invertedPageTable 
-        //more... 
+	super.initialize(args);  //bad parts from top?
+        //initialize swap file
+        swapFile=this.fileSysetm.open(swapFileName, true);  //make sure this works DEBUG DAC
+        numSwapPages=0; //there are no pages in swap at beginning
+        numPhysPages = Machine.processor().getNumPhysPagse();
+        initInvertedPageTable(numPhysPages); //initialize invertedPageTable 
+        memLock= new Lock(); //create the memory lock
+        //create all entries in TLB invalid?  (prob not necessary)
+
+        //more...??? DAC 
+        return;
     }
 
     /**
@@ -45,9 +52,21 @@ public class VMKernel extends UserKernel {
      * Terminate this kernel. Never returns.
      */
     public void terminate() {
+        this.filesystem.remove(swapFileName);  //delete swap file  DAC DEBUG 
 	super.terminate();
-    }
 
+    }
+    /**
+     *initInvertedPageTable - creates all of the entries for the inverted page table
+     *params:
+     *  numPages - number of entries to put in inverted table
+     *returns - N/A - void
+     **/
+    private void initInvertedPageTable(int numPages){
+	for(int i=0;i<numPhysPages;i++){
+	    invertedPageTable.add(new TranslationEntry(-1, -1, false, false, false, false)); //maybe -1 won't work DEBUG DAC
+	}
+    }
     /**
      * scanForFreePage - 
      * params: none
@@ -139,6 +158,8 @@ public class VMKernel extends UserKernel {
      *returns - the next available page
      *****************************************************************************************************************************************/
     public int getAvailablePage(){
+        int availablePage=-1; //the ppn we're after
+        
 	//scanForFreePage() - scan invertedPageTable for available page 
 	     //(might want to just use clock algorithm here too)
 	     //(might also want to keep a "pointer"  (an int) that points to the next page, but this can be ignored for now
@@ -167,7 +188,14 @@ public class VMKernel extends UserKernel {
      * DAN AND PINKY'S ADDED VARIABLES
      *******************************************************************************************************************************************/
     private OpenFile swapFile;   //The swap file  
-    private LinkedList<TranslationEntry> invertedPageTable; //might need to make "buckets" so we can keep track of PID, but for now will use ppn for pid since it doesn't seem to have a purpose if we index into this table by ppn
+    /*might need to make "buckets" so we can keep track of PID, but for now will use ppn for pid since it doesn't seem to have a purpose if we index into this table by ppn  */
+    private final String swapFileName="swapswapswap.swp"; //name of swap file
+    private int numSwapPages;
+    private LinkedList<TranslationEntry> invertedPageTable;
+    public int numPhysPages;
+    public Lock memLock;         //lock accessed for each memory maintenance stuff (pinning, get page, etc)
     private int currentPage=0;  //the page currently pointed to by the clock algorithm
-    private priorityQueue<Integer> freeSwap; //heap which returns lowest-valued free page in swap file, some more design needed here for managing memory, removing blocks, etc.  Should ask how dynamic freeing of the memory needs to be. (do we do as malloc, etc)
+    /*heap which returns lowest-valued free page in swap file, some more design needed here for managing memory, removing blocks, etc.  Should ask how dynamic freeing of the memory needs to be. (do we do as malloc, etc) */
+    private priorityQueue<Integer> freeSwap; //holds freed pages
+
 }

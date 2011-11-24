@@ -35,7 +35,7 @@ public class UserKernel extends ThreadedKernel {
     }
     private void initFreePages(){    //AFTER MERGE  NEW FUNCTION
 	for(int i=0; i< Machine.processor().getNumPhysPages(); i++){    //potential issue with .processor()?  
-            freePagesPool.add(i);                                       //potential issue with adding an integer instead of an integer object? 
+            freePagesPool.add(i);                                       
         }
         return;
     }
@@ -142,5 +142,5 @@ public class UserKernel extends ThreadedKernel {
     public static int next_pid=0;     //pid to be assigned to next process
     public static Lock numProcessLock;
     public static int numActiveProcesses=0;   //active processes
-    public static LinkedList<Integer> freePagesPool = new LinkedList<Integer>();   //maybe integer object is the problem?
+    public static LinkedList<Integer> freePagesPool = new LinkedList<Integer>();  
 }
