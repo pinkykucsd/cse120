@@ -270,7 +270,6 @@ public class UserProcess {
      * @return	<tt>true</tt> if the executable was successfully loaded.
      */
     private boolean load(String name, String[] args) {
-                        System.out.print("Loading\n");
 	Lib.debug(dbgProcess, "UserProcess.load(\"" + name + "\")");
 	
 	OpenFile executable = ThreadedKernel.fileSystem.open(name, false);
@@ -330,7 +329,7 @@ public class UserProcess {
         }
 	// store arguments in last page 
 	storeArguments();
-        /*
+        /*    store arguments part
 	int entryOffset = (numPages-1)*pageSize;
 	int stringOffset = entryOffset + args.length*4;
 
@@ -377,12 +376,15 @@ public class UserProcess {
 	return;
     }
 
-    /*****************************************************************************************************
-     *loadAllPages()  - takes the first part of loadSections out of load sections
-     *params: none
-     *returns - N/A
-     ****************************************************************************************************/
-    protected void loadAllPages(){
+    /**
+     * Allocates memory for this process, and loads the COFF sections into   AFTER MERGE2 DAC DEBUG : potential issue, loading coff secs into wrong pages top v botom
+     * memory. If this returns successfully, the process will definitely be
+     * run (this is the last step in process initialization that can fail).
+     *
+     * @return	<tt>true</tt> if the sections were successfully loaded.
+     */
+    protected boolean loadSections() {
+
          if (numPages > Machine.processor().getNumPhysPages()) {
 	    coff.close();
 	    Lib.debug(dbgProcess, "\tinsufficient physical memory");
@@ -405,19 +407,7 @@ public class UserProcess {
 		pageTable[i] = new TranslationEntry(i,page, true,false,false,false);
 	    }
 	UserKernel.pageLock.release();
-        return;
-    }
-        
-    /**
-     * Allocates memory for this process, and loads the COFF sections into   AFTER MERGE2 DAC DEBUG : potential issue, loading coff secs into wrong pages top v botom
-     * memory. If this returns successfully, the process will definitely be
-     * run (this is the last step in process initialization that can fail).
-     *
-     * @return	<tt>true</tt> if the sections were successfully loaded.
-     */
-    protected boolean loadSections() {
-        //see function above
- 	loadAllPages();
+
 	// load sections                                                                                                                             
 	for (int s=0; s<coff.getNumSections(); s++) {
 	    CoffSection section = coff.getSection(s);

@@ -16,7 +16,7 @@ public class ptBucket {
      */
     public ptBucket(){ 
         this.section=null;
-        this.sectionPage=0;
+        this.sectionPage=-1;   //not sure if this is ok, should be, DAC DEBUG
     }
     /**
      * ptBucket:  constructor for the class.
@@ -33,6 +33,6 @@ public class ptBucket {
      *private variables:  
      */
     public CoffSection section;
-    public int section;
+    public int sectionPage;
 
 }

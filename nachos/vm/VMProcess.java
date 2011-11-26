@@ -55,6 +55,35 @@ public class VMProcess extends UserProcess {
      */
     protected boolean loadSections() {
         //Load pageTable with a bunch of invalid pages that have not been written (valid = 0 and dirty = 0) (might start with NULL, but invalid is choice for now)  DAC
+        //also load coffMap
+	coffMap=new ptBucket[numPages];   //new map for pageTable
+        pageTable = new TranslationEntry[numPages];  //num pages
+        numCoffPages=numPages-(stackPages+1);  //so we can check if coff or not this way if we want to //DAC DEBUG (implementation change maybe)
+        for(int i=0; i<numPages;i++){
+            pageTable[i]=new TranslationEntry(i,-1, false, false, false, false); //-1 might not work for ppn DAC
+            coffMap = new ptBucket();
+        }
+
+        //go through and record in each entry in coffMap, the section that is mapped to it (for all sections)
+	for (int s=0; s<coff.getNumSections(); s++) {
+	    CoffSection section = coff.getSection(s);
+
+	    Lib.debug(dbgProcess, "\tinitializing " + section.getName()
+		      + " section (" + section.getLength() + " pages)");
+
+	    for (int i=0; i<section.getLength(); i++) {
+		int vpn = section.getFirstVPN()+i;
+
+		//int ppn = UserKernel.availablePages.remove().ppn;                                                                          
+		pageTable[vpn].readOnly = section.isReadOnly();
+                coffMap[vpn].section=section;   //record the section associated with this vpn
+                coffMap[vpn].sectionPage=i;     //record the page within the section (used for loadpage()
+		//section.loadPage(i, getPhysicalPage(vpn,false));           
+		section.loadPage(i, pageTable[vpn].ppn);
+
+	    }
+	}
+
 	return super.loadSections();
     }
 
@@ -185,8 +214,42 @@ public class VMProcess extends UserProcess {
 	Machine.processor().writeTLBEntry(freeEntry, pageTable[vpn]);    //assumes pageTable[vpn] is set and valid, DAC DEBUG
     }//end of addtoTLB
 
+    /*************************************************************************************************************
+     * storeArgumentsVM() - load the arg page with the appropriate information (copied line-by line from inside load
+     * params:
+     *   none
+     * returns - N/A
+     *************************************************************************************************************/
+    protected void storeArgumentsVM(){
+       	// store arguments in last page
+	int entryOffset = (numPages-1)*pageSize;
+	int stringOffset = entryOffset + args.length*4;
 
-
+	this.argc = args.length;
+	this.argv = entryOffset;
+	
+	for (int i=0; i<argv.length; i++) {
+	    byte[] stringOffsetBytes = Lib.bytesFromInt(stringOffset);
+	    Lib.assertTrue(writeVirtualMemory(entryOffset,stringOffsetBytes) == 4);
+	    entryOffset += 4;
+	    Lib.assertTrue(writeVirtualMemory(stringOffset, argv[i]) ==
+		       argv[i].length);
+	    stringOffset += argv[i].length;
+	    Lib.assertTrue(writeVirtualMemory(stringOffset,new byte[] { 0 }) == 1);
+	    stringOffset += 1;
+	}
+	return;
+    }
+    /*************************************************************************************************************
+     * storeArguments() - empty, for use with load()
+     * params:
+     *   none
+     * returns - N/A
+     *************************************************************************************************************/
+    protected void storeArguments(){
+        //place holder for 'load'
+	return;
+    }
 
 	    
      
@@ -201,14 +264,37 @@ public class VMProcess extends UserProcess {
 
     public void initializePage(int pageFromKern, int vpn){
         int ppn = pageFromKern;
-	boolean executablePage=false; 
-        
+        /*cases:
+         *  1. page not dirty, args  - get from load args
+         *  2. page not dirty, coff  - get from coff
+         *  3. page not dirty, stack - get zero'd page
+         *  4. page dirty, args    - get from swap
+	 *  5. page dirty, coff    - get from swap   (unless written to cofffile?)
+         *  6. page dirty, stack   - get from swap
+         */
+	if(pageTable[vpn].dirty==true){   //must be on swap
+	    VMKernel.loadFromSwap(pageTable[vpn].ppn,ppn);  //load page at swap[spn] into physical page ppn
+        }else if(pageTable[vpn].dirty==false && vpn==(numPages-1)){  //last page is args ???
+            storeArgumentsVM();   //not sure about this, DAC DEBUG
+            pageTable[vpn].dirty=true;  //now args have been initialized (not sure if we need this)
+	}else if(pageTable[vpn].dirty==false && vpn<numCoffPages){  //a coff page
+	    section.loadPage(coffMap[vpn].sectionPage, ppn);  //load coff page
+	}else{   //then it is an unwritten stack page
+            //zero(ppn)  // zero out page
+        }
+        pageTable[vpn].ppn=ppn;  //assign ppn to pageTableEntry
+        pageTable[vpn].used=true;  //not sure if needed
+        pageTable[vpn].valid=true; //is this somewhere else already?
         return;
     }
+            
+
+
     private static final int pageSize = Processor.pageSize;
     private static final char dbgProcess = 'a';
     private static final char dbgVM = 'v';
     private static Random randomGenerator = new Random();
+    protected int numCoffpages;
     private ptBucket[] coffMap;
     //not sure if we need to redeclare variables that are in the parent class   DAC DEBUG ???
     

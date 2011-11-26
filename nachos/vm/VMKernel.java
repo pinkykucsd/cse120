@@ -127,6 +127,26 @@ public class VMKernel extends UserKernel {
         //return the page in swap that it has been saved to
         return spn;
     }
+    /**
+     * loadFromSwap - adds page from swap to page in inverted page table. Frees that page in swap
+     * params:
+     *   spn - the page in the swap file to grab
+     *   ppn - the page in invertedPageTable to copy to swap file
+     * returns - N/A
+     */
+    public static void loadFromSwap(int spn, int ppn) {
+        //get next free page from freeSwap.  (consider case when there is no page in freeSwap as well, need to get new page from swap file)
+        //maybe use a lock?
+        int spn;
+        int physicalAddr = ppn*pageSize;  //base of physical page
+        int swapAddr = spn*pageSize;  //base of swap page
+	byte[] memory = Machine.processor().getMemory();
+        swapFile.read(swapAddr,memory,physicalAddr,pageSize);  //DAC DEBUG
+        //add this page to the freeSwap
+        //zero out the page???
+        freeSwap.add(spn);
+        return;
+    }
      /**
      * evictPage - kicks a page in physical memory out and notifies the process that owns it
      * params:  
