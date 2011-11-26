@@ -185,6 +185,7 @@ public class UserProcess {
             return byteNum;  //total written
     }
 
+
     /**
      * Transfer all data from the specified array to this process's virtual
      * memory.
@@ -328,7 +329,7 @@ public class UserProcess {
 	    return false;
         }
 	// store arguments in last page 
-	storeArguments();
+	storeArguments(argv, args);
         /*    store arguments part
 	int entryOffset = (numPages-1)*pageSize;
 	int stringOffset = entryOffset + args.length*4;
@@ -355,7 +356,7 @@ public class UserProcess {
      *   none
      * returns - N/A
      *************************************************************************************************************/
-    protected void storeArguments(){
+    protected void storeArguments(byte[][] argv, String[] args){
        	// store arguments in last page
 	int entryOffset = (numPages-1)*pageSize;
 	int stringOffset = entryOffset + args.length*4;

@@ -66,7 +66,7 @@ public class VMKernel extends UserKernel {
      **/
     private void initInvertedPageTable(int numPages){
 	for(int i=0;i<numPhysPages;i++){
-	    invertedPageTable[i]=new invertedBucket(new TranslationEntry(), false, false, null); // DEBUG DAC  (might not need tEntry)
+	    invertedPageTable[i]=new invertedBucket(new TranslationEntry(), false, false, false, null); // DEBUG DAC  (might not need tEntry)
 	}
     }
     /**
@@ -137,7 +137,6 @@ public class VMKernel extends UserKernel {
     public static void loadFromSwap(int spn, int ppn) {
         //get next free page from freeSwap.  (consider case when there is no page in freeSwap as well, need to get new page from swap file)
         //maybe use a lock?
-        int spn;
         int physicalAddr = ppn*pageSize;  //base of physical page
         int swapAddr = spn*pageSize;  //base of swap page
 	byte[] memory = Machine.processor().getMemory();
@@ -168,17 +167,34 @@ public class VMKernel extends UserKernel {
      * returns: ppn of page chosen to be evicted
      */
     private static int clockAlgorithm() {
-        //start at currentPage
         //set starting point to currentPage
-        //if currentPage used bit ==0 and pinned==0, it is ok to evict, return this one
-        //else, set currentPage used bit to 0, if currentPage is not pinned, set "notPinned" to true (this will be needed to prevent infinite loop of clock)
-        //currentPage++
-        //go around until a page can be evicted OR, if notPinned==false after it went to every page (currentPage-startpage==numPhysPages), then every
-        //    page is pinned, put process to sleep
-        //eventually return the page that should be evicted/used
-        return 0;  //placeholder
+        int total=0;
+        boolean notPinned=false;
+        //check if page is even assigend
+        do{
+            if(invertedPageTable[currentPage].assigned==false){
+                return currentPage++;   //make sure this works in java? DAC DEBUG
+            }
+            //if currentPage used bit ==0 and pinned==0, it is ok to evict, return this one
+            if(invertedPageTable[currentPage].pinned==true){
+                invertedPageTable[currentPage].used=false;
+            }else if(invertedPageTable[currentPage].used==false){   //not pinned and not used, gimme gimme
+                invertedPageTable[currentPage].used=true;  //now it's being used 
+                return currentPage++;   //make sure this works in java? DAC DEBUG
+            }else{                    // 
+                notPinned=true;   //we have at least one non-pinned page
+                invertedPageTable[currentPage].used=false;
+                currentPage++;   //move to next page
+                total++;         //increment total
+            }
+            currentPage=currentPage%numPhysPages;  //going around modulo
+            if(total>numPhysPages && !notPinned){
+                //put to sleep DAC DEBUG !!!
+            }
+	}while(true);
+
     }
-    //DAC
+
     /****************************************************************************************************************************************
      *getAvailablePage() - returns a page in physical memory which is available for use by a process.  Called when a process needs a page due
      *                      to an "invalid" bit set in their pageTable.  If there aren't any available pages, calls evictPage() to free one

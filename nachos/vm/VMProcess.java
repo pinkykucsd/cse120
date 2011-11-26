@@ -61,7 +61,7 @@ public class VMProcess extends UserProcess {
         numCoffPages=numPages-(stackPages+1);  //so we can check if coff or not this way if we want to //DAC DEBUG (implementation change maybe)
         for(int i=0; i<numPages;i++){
             pageTable[i]=new TranslationEntry(i,-1, false, false, false, false); //-1 might not work for ppn DAC
-            coffMap = new ptBucket();
+            coffMap[i] = new ptBucket();
         }
 
         //go through and record in each entry in coffMap, the section that is mapped to it (for all sections)
@@ -246,8 +246,9 @@ public class VMProcess extends UserProcess {
      *   none
      * returns - N/A
      *************************************************************************************************************/
-    protected void storeArguments(){
+    protected void storeArguments(byte[][] argv, String[] args){
         //place holder for 'load'
+        super.storeArguments(argv, args);  //placeholder for now
 	return;
     }
 
@@ -275,10 +276,10 @@ public class VMProcess extends UserProcess {
 	if(pageTable[vpn].dirty==true){   //must be on swap
 	    VMKernel.loadFromSwap(pageTable[vpn].ppn,ppn);  //load page at swap[spn] into physical page ppn
         }else if(pageTable[vpn].dirty==false && vpn==(numPages-1)){  //last page is args ???
-            storeArgumentsVM();   //not sure about this, DAC DEBUG
+	    // storeArgumentsVM();   //not sure about this, DAC DEBUG
             pageTable[vpn].dirty=true;  //now args have been initialized (not sure if we need this)
 	}else if(pageTable[vpn].dirty==false && vpn<numCoffPages){  //a coff page
-	    section.loadPage(coffMap[vpn].sectionPage, ppn);  //load coff page
+	    coffMap[vpn].section.loadPage(coffMap[vpn].sectionPage, ppn);  //load coff page
 	}else{   //then it is an unwritten stack page
             //zero(ppn)  // zero out page
         }
@@ -287,6 +288,69 @@ public class VMProcess extends UserProcess {
         pageTable[vpn].valid=true; //is this somewhere else already?
         return;
     }
+
+    /**
+     * Transfer data from the specified array to this process's virtual memory.
+     * This method handles address translation details. This method must
+     * <i>not</i> destroy the current process if an error occurs, but instead
+     * should return the number of bytes successfully copied (or zero if no
+     * data could be copied).
+     *
+     * @param	vaddr	the first byte of virtual memory to write.
+     * @param	data	the array containing the data to transfer.
+     * @param	offset	the first byte to transfer from the array.
+     * @param	length	the number of bytes to transfer from the array to
+     *			virtual memory.
+     * @return	the number of bytes successfully transferred.
+     */
+    public int writeVirtualMemory(int vaddr, byte[] data, int offset,
+				  int length) {
+        int byteNum=0;
+        //pin page and mark as used and dirty
+        //read only check??? DAC
+        VMKernel.memLock.acquire();
+        int vpn=Processor.pageFromAddress(vaddr + byteNum);  //get the vpn
+        int ppn=pageTable[vpn].ppn;
+        VMKernel.invertedPageTable[ppn].used=true;
+        VMKernel.invertedPageTable[ppn].pinned=true;
+        VMKernel.invertedPageTable[ppn].tEntry.dirty=true;  //necessary?
+        pageTable[vpn].dirty=true;  //woop
+        byteNum=super.writeVirtualMemory(vaddr, data, offset, length);
+        VMKernel.invertedPageTable[ppn].pinned=false;
+        VMKernel.memLock.release();
+        return byteNum;  //total written
+
+    }
+
+    /**
+     * Transfer data from this process's virtual memory to the specified array.
+     * This method handles address translation details. This method must
+     * <i>not</i> destroy the current process if an error occurs, but instead
+     * should return the number of bytes successfully copied (or zero if no
+     * data could be copied).
+     *
+     * @param	vaddr	the first byte of virtual memory to read.
+     * @param	data	the array where the data will be stored.
+     * @param	offset	the first byte to write in the array.
+     * @param	length	the number of bytes to transfer from virtual memory to
+     *			the array.
+     * @return	the number of bytes successfully transferred.
+     */
+    public int readVirtualMemory(int vaddr, byte[] data, int offset,
+				 int length) {
+        int byteNum=0;
+        //pin page and mark as used and dirty
+        //read only check??? DAC
+        VMKernel.memLock.acquire();
+        int vpn=Processor.pageFromAddress(vaddr + byteNum);  //get the vpn
+        int ppn=pageTable[vpn].ppn;
+        VMKernel.invertedPageTable[ppn].used=true;
+        VMKernel.invertedPageTable[ppn].pinned=true;
+        byteNum=super.readVirtualMemory(vaddr, data, offset, length);
+        VMKernel.invertedPageTable[ppn].pinned=false;
+        VMKernel.memLock.release();
+        return byteNum;  //total written
+    }
             
 
 
@@ -294,7 +358,7 @@ public class VMProcess extends UserProcess {
     private static final char dbgProcess = 'a';
     private static final char dbgVM = 'v';
     private static Random randomGenerator = new Random();
-    protected int numCoffpages;
+    protected int numCoffPages;
     private ptBucket[] coffMap;
     //not sure if we need to redeclare variables that are in the parent class   DAC DEBUG ???
     
