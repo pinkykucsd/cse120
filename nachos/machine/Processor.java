@@ -333,11 +333,7 @@ public final class Processor {
 	    if (entry == null) {
 		privilege.stats.numTLBMisses++;
 		Lib.debug(dbgProcessor, "\t\tTLB miss");
-<<<<<<< HEAD
 		throw new MipsException(exceptionTLBMiss, vaddr);      //Understand this DAC
-=======
-		throw new MipsException(exceptionTLBMiss, vaddr);
->>>>>>> 3e2644209bf6ba9b7f44130a686e1f93df16c01e
 	    }
 	}
 

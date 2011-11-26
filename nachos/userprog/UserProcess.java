@@ -328,7 +328,36 @@ public class UserProcess {
             System.out.print("Load Sections not Valid\n");
 	    return false;
         }
-	// store arguments in last page
+	// store arguments in last page 
+	storeArguments();
+        /*
+	int entryOffset = (numPages-1)*pageSize;
+	int stringOffset = entryOffset + args.length*4;
+
+	this.argc = args.length;
+	this.argv = entryOffset;
+	
+	for (int i=0; i<argv.length; i++) {
+	    byte[] stringOffsetBytes = Lib.bytesFromInt(stringOffset);
+	    Lib.assertTrue(writeVirtualMemory(entryOffset,stringOffsetBytes) == 4);
+	    entryOffset += 4;
+	    Lib.assertTrue(writeVirtualMemory(stringOffset, argv[i]) ==
+		       argv[i].length);
+	    stringOffset += argv[i].length;
+	    Lib.assertTrue(writeVirtualMemory(stringOffset,new byte[] { 0 }) == 1);
+	    stringOffset += 1;
+	} */
+
+	return true;
+    }
+    /*************************************************************************************************************
+     * storeArguments() - load the arg page with the appropriate information (copied line-by line from inside load
+     * params:
+     *   none
+     * returns - N/A
+     *************************************************************************************************************/
+    protected void storeArguments(){
+       	// store arguments in last page
 	int entryOffset = (numPages-1)*pageSize;
 	int stringOffset = entryOffset + args.length*4;
 
@@ -345,25 +374,21 @@ public class UserProcess {
 	    Lib.assertTrue(writeVirtualMemory(stringOffset,new byte[] { 0 }) == 1);
 	    stringOffset += 1;
 	}
-
-	return true;
+	return;
     }
 
-    /**
-     * Allocates memory for this process, and loads the COFF sections into   AFTER MERGE2 DAC DEBUG : potential issue, loading coff secs into wrong pages top v botom
-     * memory. If this returns successfully, the process will definitely be
-     * run (this is the last step in process initialization that can fail).
-     *
-     * @return	<tt>true</tt> if the sections were successfully loaded.
-     */
-    protected boolean loadSections() {
-        //System.out.print("Loading Sections\n");     //TRACE
-	if (numPages > Machine.processor().getNumPhysPages()) {
+    /*****************************************************************************************************
+     *loadAllPages()  - takes the first part of loadSections out of load sections
+     *params: none
+     *returns - N/A
+     ****************************************************************************************************/
+    protected void loadAllPages(){
+         if (numPages > Machine.processor().getNumPhysPages()) {
 	    coff.close();
 	    Lib.debug(dbgProcess, "\tinsufficient physical memory");
 	    return false;
 	}
-        UserKernel.pageLock.acquire();  //AFTER MERGE2 
+        UserKernel.pageLock.acquire();
 	// load sections
         while(numPages>UserKernel.freePagesPool.size()){   //AFTER MERGE2 DAC DEBUG - need corresponding WAKE call from exit  DEBUG2 why size() here and length in readVirtualMemory and writeVirtualMemory?
             //go to sleep to wait for free pages
@@ -380,7 +405,19 @@ public class UserProcess {
 		pageTable[i] = new TranslationEntry(i,page, true,false,false,false);
 	    }
 	UserKernel.pageLock.release();
-
+        return;
+    }
+        
+    /**
+     * Allocates memory for this process, and loads the COFF sections into   AFTER MERGE2 DAC DEBUG : potential issue, loading coff secs into wrong pages top v botom
+     * memory. If this returns successfully, the process will definitely be
+     * run (this is the last step in process initialization that can fail).
+     *
+     * @return	<tt>true</tt> if the sections were successfully loaded.
+     */
+    protected boolean loadSections() {
+        //see function above
+ 	loadAllPages();
 	// load sections                                                                                                                             
 	for (int s=0; s<coff.getNumSections(); s++) {
 	    CoffSection section = coff.getSection(s);
@@ -722,7 +759,7 @@ public class UserProcess {
     private void handleExit(int status){         //AFTER MERGE3 
 	unloadSections();
 	coff.close();
-nn        for(int i=0;i<file_descriptors.length;i++){
+        for(int i=0;i<file_descriptors.length;i++){
 	    if(file_descriptors[i]!=null){
 		handleClose(i);             //this should work
             }
