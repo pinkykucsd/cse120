@@ -4,6 +4,7 @@ import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
 import nachos.vm.*;
+import java.util.Random;
 
 /**
  * A <tt>UserProcess</tt> that supports demand-paging.
@@ -86,7 +87,7 @@ public class VMProcess extends UserProcess {
                 //return false;  gotta do something here, but what?  DAC DEBUG!!! 
             }
             if(checkValidAddress(vpn)==false){
-                int newPage = VMKernel.getAvailablePage();   //gimme a page to use biznitch!  DAC
+                int newPage = VMKernel.getAvailablePage(this, vpn);   //gimme a page to use biznitch!  DAC
                 initializePage(newPage,vpn);   //initialize page with information
             }
             addToTLB(vpn);   //add entry to TLB
@@ -126,7 +127,7 @@ public class VMProcess extends UserProcess {
      *   ppn - the page in invertedPageTable to save/zero out
      * returns - n/a
      *********************************************************************************************************************************************/
-   private void savePage(int vpn) {
+   public void savePage(int vpn) {
         //figure out if page needs to be saved to swap
        TranslationEntry tEntry=pageTable[vpn];   //DAC DEBUG - make sure that
        if(tEntry.dirty){    //entry has been written to, save to swap
@@ -178,7 +179,7 @@ public class VMProcess extends UserProcess {
 	}
 	// PK: if no free entry was found, we replace by Random b/c TLB is full
 	if (freeEntry == -1){
-		freeEntry = random.nextInt(Machine.processor().getTLBSize());
+    	    freeEntry = randomGenerator.nextInt(Machine.processor().getTLBSize());   //get the next random number 
 	}//end of IFstatement of no free entry found
         //write to tlb at appropriate spot with entry from pageTable
 	Machine.processor().writeTLBEntry(freeEntry, pageTable[vpn]);    //assumes pageTable[vpn] is set and valid, DAC DEBUG
@@ -198,7 +199,7 @@ public class VMProcess extends UserProcess {
      ************************************************************************************************************************************/
     //initializePage(getspagefromkernel) (initialize page with appropriate information)
 
-    public void initializePage(int pagefromKern, int vpn){
+    public void initializePage(int pageFromKern, int vpn){
         int ppn = pageFromKern;
 	boolean executablePage=false; 
         
@@ -207,6 +208,8 @@ public class VMProcess extends UserProcess {
     private static final int pageSize = Processor.pageSize;
     private static final char dbgProcess = 'a';
     private static final char dbgVM = 'v';
+    private static Random randomGenerator = new Random();
+    private ptBucket[] coffMap;
     //not sure if we need to redeclare variables that are in the parent class   DAC DEBUG ???
     
 }

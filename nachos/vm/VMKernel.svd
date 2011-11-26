@@ -91,7 +91,7 @@ public class VMKernel extends UserKernel {
      *   vpn - the vpn in the process wit which this will be associated 
      * returns - n/a
      */
-    private static void assignPage(int ppn, VMProcess process, int vpn) {
+    private void assignPage(int ppn, VMProcess process, int vpn) {
         //code
         //might need to call lock, but should already have lock in getAvailablePage
         invertedBucket bucky=invertedPageTable[ppn];
@@ -110,7 +110,7 @@ public class VMKernel extends UserKernel {
      *   ppn - the page in invertedPageTable to copy to swap file
      * returns - the page in swap file where it was saved
      */
-    public static int addToSwap(int ppn) {
+    public int addToSwap(int ppn) {
         //get next free page from freeSwap.  (consider case when there is no page in freeSwap as well, need to get new page from swap file)
         //maybe use a lock?
         int spn;
@@ -133,7 +133,7 @@ public class VMKernel extends UserKernel {
      *   ppn - ppn to evict
      * returns: N/A
      */
-    private static void evictPage(int ppn) {
+    private void evictPage(int ppn) {
         int vpn = invertedPageTable[ppn].tEntry.vpn;    
         VMProcess process = invertedPageTable[ppn].process;
 	    //call savePage() to save physical page to swap if necessary and notify process that its page is invalid 'n' stuff
@@ -147,7 +147,7 @@ public class VMKernel extends UserKernel {
      * params:  none
      * returns: ppn of page chosen to be evicted
      */
-    private static int clockAlgorithm() {
+    private int clockAlgorithm() {
         //start at currentPage
         //set starting point to currentPage
         //if currentPage used bit ==0 and pinned==0, it is ok to evict, return this one
@@ -168,7 +168,7 @@ public class VMKernel extends UserKernel {
      * int vpn - the virtual page that this will be assigned to
      *returns - the next available page
      *****************************************************************************************************************************************/
-    public static int getAvailablePage(VMProcess process, int vpn){
+    public int getAvailablePage(VMProcess process, int vpn){
         int availablePage=-1; //the ppn we're after
         memLock.acquire();   //might be a better place to do this, but we definitely need it.  //also, be sure to order the locks  DAC DEBUG
         availablePage=clockAlgorithm();  //get the page we're going to give to the user
@@ -189,16 +189,16 @@ public class VMKernel extends UserKernel {
     /********************************************************************************************************************************************
      * DAN AND PINKY'S ADDED VARIABLES
      *******************************************************************************************************************************************/
-    private static OpenFile swapFile;   //The swap file  
+    private OpenFile swapFile;   //The swap file  
     /*might need to make "buckets" so we can keep track of PID, but for now will use ppn for pid since it doesn't seem to have a purpose if we index into this table by ppn  */
-    private static final String swapFileName="swapswapswap.swp"; //name of swap file
-    private static int numSwapPages;
-    private static int pageSize=Processor.pageSize;
+    private final String swapFileName="swapswapswap.swp"; //name of swap file
+    private int numSwapPages;
+    private int pageSize=Processor.pageSize;
     public static invertedBucket[] invertedPageTable;   //make this private and adjust accordingly
-    public static int numPhysPages;
-    public static Lock memLock;         //lock accessed for each memory maintenance stuff (pinning, get page, etc)
-    private static int currentPage=0;  //the page currently pointed to by the clock algorithm
+    public int numPhysPages;
+    public Lock memLock;         //lock accessed for each memory maintenance stuff (pinning, get page, etc)
+    private int currentPage=0;  //the page currently pointed to by the clock algorithm
     /*heap which returns lowest-valued free page in swap file, some more design needed here for managing memory, removing blocks, etc.  Should ask how dynamic freeing of the memory needs to be. (do we do as malloc, etc) */
-    private static PriorityQueue<Integer> freeSwap; //holds freed pages
+    private PriorityQueue<Integer> freeSwap; //holds freed pages
     
 }
