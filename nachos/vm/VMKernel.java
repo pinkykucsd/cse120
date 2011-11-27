@@ -22,13 +22,14 @@ public class VMKernel extends UserKernel {
      */
     public void initialize(String[] args) {
         //need to initialize the VMKernel slightly differently: need an inverted page table, a swap file, different locks, 
-	super.initialize(args);  //bad parts from top?
+	super.initialize(args);  //bad parts from UserKernel?
         //initialize swap file
         swapFile=this.fileSystem.open(swapFileName, true);  //make sure this works DEBUG DAC
         numSwapPages=0; //there are no pages in swap at beginning
         numPhysPages = Machine.processor().getNumPhysPages();
         invertedPageTable = new invertedBucket[numPhysPages];
         initInvertedPageTable(numPhysPages); //initialize invertedPageTable 
+        freeSwap=new PriorityQueue<Integer>();
         memLock= new Lock(); //create the memory lock
         //create all entries in TLB invalid?  (prob not necessary)
 
@@ -114,7 +115,7 @@ public class VMKernel extends UserKernel {
         //get next free page from freeSwap.  (consider case when there is no page in freeSwap as well, need to get new page from swap file)
         //maybe use a lock?
         int spn;
-        if(freeSwap.peek()==null){
+        if(freeSwap.size()==0){
 	    spn=numSwapPages;
             numSwapPages++;
         }else{
@@ -171,16 +172,19 @@ public class VMKernel extends UserKernel {
         int total=0;
         boolean notPinned=false;
         //check if page is even assigend
+        currentPage=currentPage%numPhysPages;
         do{
             if(invertedPageTable[currentPage].assigned==false){
-                return currentPage++;   //make sure this works in java? DAC DEBUG
+                currentPage++;
+                return currentPage-1;   //make sure this works in java? DAC DEBUG
             }
             //if currentPage used bit ==0 and pinned==0, it is ok to evict, return this one
             if(invertedPageTable[currentPage].pinned==true){
                 invertedPageTable[currentPage].used=false;
             }else if(invertedPageTable[currentPage].used==false){   //not pinned and not used, gimme gimme
                 invertedPageTable[currentPage].used=true;  //now it's being used 
-                return currentPage++;   //make sure this works in java? DAC DEBUG
+                currentPage++;
+                return currentPage-1;   //make sure this works in java? DAC DEBUG
             }else{                    // 
                 notPinned=true;   //we have at least one non-pinned page
                 invertedPageTable[currentPage].used=false;
@@ -190,6 +194,7 @@ public class VMKernel extends UserKernel {
             currentPage=currentPage%numPhysPages;  //going around modulo
             if(total>numPhysPages && !notPinned){
                 //put to sleep DAC DEBUG !!!
+                System.out.print("Should be put to sleep here, implement me!\n");
             }
 	}while(true);
 

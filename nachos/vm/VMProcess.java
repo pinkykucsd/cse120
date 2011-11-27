@@ -44,7 +44,8 @@ public class VMProcess extends UserProcess {
      */
     public void restoreState() {
         //might need to restore a saved copy of TLB?
-	super.restoreState();     //might need to undo the "setPageTable" command in super since we are no longer using a pageTable in processor? DAC ???
+	//super.restoreState();     //might need to undo the "setPageTable" command in super since we are no longer using a pageTable in processor? DAC ???
+        return;
     }
 
     /**
@@ -79,12 +80,12 @@ public class VMProcess extends UserProcess {
                 coffMap[vpn].section=section;   //record the section associated with this vpn
                 coffMap[vpn].sectionPage=i;     //record the page within the section (used for loadpage()
 		//section.loadPage(i, getPhysicalPage(vpn,false));           
-		section.loadPage(i, pageTable[vpn].ppn);
+		//section.loadPage(i, pageTable[vpn].ppn);
 
 	    }
 	}
 
-	return super.loadSections();
+	return true;
     }
 
     /**
@@ -220,14 +221,7 @@ public class VMProcess extends UserProcess {
      *   none
      * returns - N/A
      *************************************************************************************************************/
-    protected void storeArgumentsVM(){
-       	// store arguments in last page
-	int entryOffset = (numPages-1)*pageSize;
-	int stringOffset = entryOffset + args.length*4;
-
-	this.argc = args.length;
-	this.argv = entryOffset;
-	
+    /*    protected void storeArgumentsVM(byte[][] argv, String[] args, int entryOffset, int stringOffset){
 	for (int i=0; i<argv.length; i++) {
 	    byte[] stringOffsetBytes = Lib.bytesFromInt(stringOffset);
 	    Lib.assertTrue(writeVirtualMemory(entryOffset,stringOffsetBytes) == 4);
@@ -239,16 +233,18 @@ public class VMProcess extends UserProcess {
 	    stringOffset += 1;
 	}
 	return;
-    }
+	} */
     /*************************************************************************************************************
      * storeArguments() - empty, for use with load()
      * params:
      *   none
      * returns - N/A
      *************************************************************************************************************/
-    protected void storeArguments(byte[][] argv, String[] args){
-        //place holder for 'load'
-        super.storeArguments(argv, args);  //placeholder for now
+    protected void storeArguments(byte[][] argv, String[] args, int entryOffset, int stringOffset){
+        this.argvStandIn=argv;
+        this.argsStandIn=args;
+        this.entryOffsetStandIn=entryOffset;
+        this.stringOffsetStandIn=stringOffset;
 	return;
     }
 
@@ -276,7 +272,7 @@ public class VMProcess extends UserProcess {
 	if(pageTable[vpn].dirty==true){   //must be on swap
 	    VMKernel.loadFromSwap(pageTable[vpn].ppn,ppn);  //load page at swap[spn] into physical page ppn
         }else if(pageTable[vpn].dirty==false && vpn==(numPages-1)){  //last page is args ???
-	    // storeArgumentsVM();   //not sure about this, DAC DEBUG
+	    super.storeArguments(argvStandIn, argsStandIn, entryOffsetStandIn, stringOffsetStandIn);   //not sure about this, DAC DEBUG
             pageTable[vpn].dirty=true;  //now args have been initialized (not sure if we need this)
 	}else if(pageTable[vpn].dirty==false && vpn<numCoffPages){  //a coff page
 	    coffMap[vpn].section.loadPage(coffMap[vpn].sectionPage, ppn);  //load coff page
@@ -360,6 +356,10 @@ public class VMProcess extends UserProcess {
     private static Random randomGenerator = new Random();
     protected int numCoffPages;
     private ptBucket[] coffMap;
-    //not sure if we need to redeclare variables that are in the parent class   DAC DEBUG ???
+    private byte[][] argvStandIn;
+    private String[] argsStandIn;
+    private int entryOffsetStandIn;
+    private int stringOffsetStandIn;
+
     
 }

@@ -24,8 +24,8 @@ public class UserKernel extends ThreadedKernel {
 	super.initialize(args);
 
 	console = new SynchConsole(Machine.console());
-        pageLock=new Lock();  //AFTER MERGE
-        pid_lock=new Lock();  //AFTER MERGE
+        pageLock=new Lock();  
+        pid_lock=new Lock();  
         numProcessLock=new Lock();
         processWait = new Condition(pageLock);
 	initFreePages();
@@ -33,7 +33,7 @@ public class UserKernel extends ThreadedKernel {
 		public void run() { exceptionHandler(); }
 	    });
     }
-    private void initFreePages(){    //AFTER MERGE  NEW FUNCTION
+    private void initFreePages(){    
 	for(int i=0; i< Machine.processor().getNumPhysPages(); i++){    //potential issue with .processor()?  
             freePagesPool.add(i);                                       
         }
@@ -103,12 +103,11 @@ public class UserKernel extends ThreadedKernel {
 	super.run();
 
 	UserProcess process = UserProcess.newUserProcess();
-        process.isRoot=true;      //AFTER MERGE
+        process.isRoot=true;      //all subsequent processes are called by this process or one of its children
 	
 	String shellProgram = Machine.getShellProgramName();	
 	Lib.assertTrue(process.execute(shellProgram, new String[] { }));                       
-        //Lib.assertTrue(process.execute("mv.coff", new String[]{"mv","blooper", "blooper2.txt"}));
-        //Lib.assertTrue(process.execute("echo.coff", new String[]{"echo","hello", "blooper2.txt"}));
+
 
 	KThread.currentThread().finish();
     }

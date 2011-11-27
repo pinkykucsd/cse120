@@ -273,12 +273,13 @@ public class UserProcess {
     private boolean load(String name, String[] args) {
 	Lib.debug(dbgProcess, "UserProcess.load(\"" + name + "\")");
 	
+        //open the file
 	OpenFile executable = ThreadedKernel.fileSystem.open(name, false);
 	if (executable == null) {
 	    Lib.debug(dbgProcess, "\topen failed");
 	    return false;
 	}
-
+        //make a coff
 	try {
 	    coff = new Coff(executable);
 	}
@@ -328,15 +329,13 @@ public class UserProcess {
             System.out.print("Load Sections not Valid\n");
 	    return false;
         }
-	// store arguments in last page 
-	storeArguments(argv, args);
-        /*    store arguments part
 	int entryOffset = (numPages-1)*pageSize;
 	int stringOffset = entryOffset + args.length*4;
-
 	this.argc = args.length;
 	this.argv = entryOffset;
-	
+	// store arguments in last page 
+	storeArguments(argv, args, entryOffset, stringOffset);
+        /*    store arguments part	
 	for (int i=0; i<argv.length; i++) {
 	    byte[] stringOffsetBytes = Lib.bytesFromInt(stringOffset);
 	    Lib.assertTrue(writeVirtualMemory(entryOffset,stringOffsetBytes) == 4);
@@ -356,14 +355,8 @@ public class UserProcess {
      *   none
      * returns - N/A
      *************************************************************************************************************/
-    protected void storeArguments(byte[][] argv, String[] args){
+    protected void storeArguments(byte[][] argv, String[] args, int entryOffset, int stringOffset){
        	// store arguments in last page
-	int entryOffset = (numPages-1)*pageSize;
-	int stringOffset = entryOffset + args.length*4;
-
-	this.argc = args.length;
-	this.argv = entryOffset;
-	
 	for (int i=0; i<argv.length; i++) {
 	    byte[] stringOffsetBytes = Lib.bytesFromInt(stringOffset);
 	    Lib.assertTrue(writeVirtualMemory(entryOffset,stringOffsetBytes) == 4);
