@@ -278,12 +278,15 @@ public class VMProcess extends UserProcess {
 	    coffMap[vpn].section.loadPage(coffMap[vpn].sectionPage, ppn);  //load coff page
 	}else{   //then it is an unwritten stack page
             //zero(ppn)  // zero out page
+            VMKernel.zero(ppn);
         }
         pageTable[vpn].ppn=ppn;  //assign ppn to pageTableEntry
         pageTable[vpn].used=true;  //not sure if needed
         pageTable[vpn].valid=true; //is this somewhere else already?
         return;
     }
+
+
 
     /**
      * Transfer data from the specified array to this process's virtual memory.

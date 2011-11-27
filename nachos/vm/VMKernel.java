@@ -4,7 +4,7 @@ import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
 import nachos.vm.*;
-import java.util.PriorityQueue;
+import java.util.*;
 
 /**
  * A kernel that can support multiple demand-paging user processes.
@@ -84,6 +84,26 @@ public class VMKernel extends UserKernel {
         //else
         return -1;
     }
+
+
+    /****************************************************************************************************
+     *zero- fills the page in physical memory with zeros
+     *params
+     *  ppn - the page to zero out
+     *return N/A
+     *****************************************************************************************************/
+    public static void zero(int ppn){
+        //acquire pagelock, dipshit
+        memLock.acquire();
+        int physAddress = ppn*pageSize;
+	byte[] memory = Machine.processor().getMemory();        
+        byte zeero=0;
+        Arrays.fill(memory,physAddress, physAddress+pageSize-1, zeero);  //fill a page with zeros  
+        memLock.release();
+        return;
+    }
+
+
     /**
      * assignPage - changes values in invertedPageTable to assign to process with id pid
      * params:
